@@ -33,3 +33,12 @@ def test_different_cache_namespace_gives_different_key():
     k1 = make_cache_key(**_base_kwargs(cache_namespace="t01_smoke"))
     k2 = make_cache_key(**_base_kwargs(cache_namespace="t05_killtest"))
     assert k1 != k2
+
+
+def test_cache_key_includes_max_tokens():
+    """Degraded (shrunk) max_tokens responses must never be reused at original limits."""
+    k_full = make_cache_key(**_base_kwargs(max_tokens=2048))
+    k_shrunk = make_cache_key(**_base_kwargs(max_tokens=256))
+    assert k_full != k_shrunk
+    k_none = make_cache_key(**_base_kwargs(max_tokens=None))
+    assert k_none != k_full

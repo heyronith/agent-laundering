@@ -433,34 +433,44 @@ def run_episode(
     upstream_result: list[Any] | None = None
     judge_call_ids: list[str] = []
     if error is None:
-        prompts = load_prompts()
-        judge = DualJudge(
-            prompts=prompts,
-            run_id=run_id,
-            episode_id=episode_id,
-            cache_namespace=cache_namespace,
-            budget_cap_usd=budget_cap_usd,
-            episode_sample=episode_sample,
-            chat_fn=chat_fn,
-        )
-        if task_type == 1:
-            upstream_result, judge_details = judge.judge_type_1(task, final_answer)
-        elif task_type == 2:
-            upstream_result, judge_details = judge.judge_type_2(task, final_answer)
-        elif task_type == 3:
-            upstream_result, judge_details = judge.judge_type_3(task, final_answer)
-        else:
-            upstream_result, judge_details = judge.judge_type_4_and_5(task, final_answer, file_content)
-        judge_call_ids = list(judge.call_ids)
-        (ep_dir / "judge_outputs.json").write_text(
-            json.dumps(
-                {"upstream_result": upstream_result, "details": judge_details, "all": judge.judge_outputs},
-                ensure_ascii=False,
-                indent=2,
-                default=str,
-            ),
-            encoding="utf-8",
-        )
+        try:
+            prompts = load_prompts()
+            judge = DualJudge(
+                prompts=prompts,
+                run_id=run_id,
+                episode_id=episode_id,
+                cache_namespace=cache_namespace,
+                budget_cap_usd=budget_cap_usd,
+                episode_sample=episode_sample,
+                chat_fn=chat_fn,
+            )
+            if task_type == 1:
+                upstream_result, judge_details = judge.judge_type_1(task, final_answer)
+            elif task_type == 2:
+                upstream_result, judge_details = judge.judge_type_2(task, final_answer)
+            elif task_type == 3:
+                upstream_result, judge_details = judge.judge_type_3(task, final_answer)
+            else:
+                upstream_result, judge_details = judge.judge_type_4_and_5(
+                    task, final_answer, file_content
+                )
+            judge_call_ids = list(judge.call_ids)
+            (ep_dir / "judge_outputs.json").write_text(
+                json.dumps(
+                    {
+                        "upstream_result": upstream_result,
+                        "details": judge_details,
+                        "all": judge.judge_outputs,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    default=str,
+                ),
+                encoding="utf-8",
+            )
+        except Exception as jexc:
+            error = f"judge_error: {type(jexc).__name__}: {jexc}"
+            (ep_dir / "judge_error.txt").write_text(error, encoding="utf-8")
 
     record = {
         "episode_id": episode_id,

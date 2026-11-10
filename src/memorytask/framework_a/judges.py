@@ -106,6 +106,7 @@ def judge_once(
         sample_index=sample_index,
         budget_cap_usd=budget_cap_usd,
         temperature=0.0,
+        # Use models.yaml default (2048 for judges); do not shrink for credit preflight.
         strict_provider=True,
     )
     text = _assistant_text(result["response_raw"])

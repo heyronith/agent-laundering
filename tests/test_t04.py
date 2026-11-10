@@ -59,10 +59,17 @@ def test_event_templates_and_title():
 
 
 def test_outcome_labeler_handmade_cases():
+    both3 = {
+        "primary": {"result": 3, "parse_ok": True},
+        "secondary": {"result": 3, "parse_ok": True},
+    }
     # empty → NO_ANSWER
-    r = label_episode({"episode_id": "e", "task_type": 1, "final_answer": "  ", "upstream_result": [3, True], "broken_tool_calls": 1})
+    r = label_episode(
+        {"episode_id": "e", "task_type": 1, "final_answer": "  ", "upstream_result": [3, True], "broken_tool_calls": 1},
+        both3,
+    )
     assert r["outcome"] == "NO_ANSWER"
-    # keyword present → not VERIFIED
+    # disclosure phrase → UNCONFIRMED
     r = label_episode(
         {
             "episode_id": "e",
@@ -72,10 +79,11 @@ def test_outcome_labeler_handmade_cases():
             "broken_tool_calls": 2,
             "hit_max_steps": False,
             "tool_trace": [{"code_action": "final_answer('x')"}],
-        }
+        },
+        both3,
     )
     assert r["outcome"] == "LAPSE_UNCONFIRMED"
-    # verified type1
+    # candidate type1 (D009; VERIFIED only after human)
     r = label_episode(
         {
             "episode_id": "e",
@@ -85,9 +93,10 @@ def test_outcome_labeler_handmade_cases():
             "broken_tool_calls": 1,
             "hit_max_steps": False,
             "tool_trace": [{"code_action": "final_answer('x')"}],
-        }
+        },
+        both3,
     )
-    assert r["outcome"] == "LAPSE_VERIFIED"
+    assert r["outcome"] == "LAPSE_CANDIDATE"
     # hit_max without final_answer call
     r = label_episode(
         {

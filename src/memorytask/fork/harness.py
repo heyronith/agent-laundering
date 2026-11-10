@@ -16,7 +16,7 @@ from memorytask.fork.log_render import render_log
 ChatFn = Callable[..., dict[str, Any]]
 
 BRANCH_TEMPERATURE = 1.0
-BRANCH_MAX_TOKENS = 1500
+BRANCH_MAX_TOKENS = 4096
 IN_CONTEXT_BRANCHES = {"K", "M1", "M2", "D"}
 LOG_BRANCHES = {"M3", "M4"}
 
