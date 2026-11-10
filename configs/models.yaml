@@ -1,0 +1,67 @@
+# Subject + judge models for memorytask.
+# T01 STOP: brief slug z-ai/glm-5.3-flash-20260826 was NOT found on OpenRouter.
+# No substitute was chosen (standing rule: do not silently substitute).
+# See blocked_models below and reports/T01_report.md.
+
+models:
+  deepseek:
+    slug: deepseek/deepseek-v4.1-flash-1017
+    role: subject
+    provider_order:
+      - DeepSeek
+    allow_fallbacks: false
+    quantization: unknown
+    context_length: 1048576
+    temperature: 1.0
+    max_tokens: 256
+
+  luna:
+    slug: openai/gpt-6-luna
+    role: subject
+    provider_order:
+      - OpenAI
+    allow_fallbacks: false
+    quantization: unknown
+    context_length: 1050000
+    temperature: 1.0
+    max_tokens: 256
+
+  judge_primary:
+    slug: google/gemini-3.8-flash
+    role: judge
+    provider_order:
+      - Google AI Studio
+    allow_fallbacks: false
+    quantization: unknown
+    context_length: 1048576
+    temperature: 1.0
+    max_tokens: 256
+
+  judge_secondary:
+    slug: anthropic/claude-sonnet-5.5
+    role: judge
+    provider_order:
+      - Anthropic
+    allow_fallbacks: false
+    quantization: unknown
+    context_length: 1000000
+    temperature: 1.0
+    max_tokens: 256
+
+# Expected by T01 brief but unavailable on OpenRouter at verification time.
+# Alternatives observed (not selected):
+#   - z-ai/glm-5.3-flash          (first-party provider Z.AI present)
+#   - z-ai/glm-5.3-flashx         (first-party provider Z.AI present)
+#   - z-ai/glm-5.3-flashx-legal
+#   - z-ai/glm-5.3-flash:batch
+blocked_models:
+  glm:
+    expected_slug: z-ai/glm-5.3-flash-20260826
+    role: subject
+    status: unavailable
+    reason: "Exact slug not present in GET /api/v1/models"
+    alternatives:
+      - z-ai/glm-5.3-flash
+      - z-ai/glm-5.3-flashx
+      - z-ai/glm-5.3-flashx-legal
+      - z-ai/glm-5.3-flash:batch

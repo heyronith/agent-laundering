@@ -1,0 +1,79 @@
+{
+  "by_slug": {
+    "anthropic/claude-sonnet-5.5": {
+      "allow_fallbacks": false,
+      "context_length": 1000000,
+      "input_per_million": 2.0,
+      "output_per_million": 10.0,
+      "pinned_provider": "Anthropic",
+      "quantization": "unknown",
+      "slug": "anthropic/claude-sonnet-5.5"
+    },
+    "deepseek/deepseek-v4.1-flash-1017": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.3,
+      "output_per_million": 1.2,
+      "pinned_provider": "DeepSeek",
+      "quantization": "unknown",
+      "slug": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    "google/gemini-3.8-flash": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.375,
+      "output_per_million": 1.875,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.8-flash"
+    },
+    "openai/gpt-6-luna": {
+      "allow_fallbacks": false,
+      "context_length": 1050000,
+      "input_per_million": 0.049999999999999996,
+      "output_per_million": 0.25,
+      "pinned_provider": "OpenAI",
+      "quantization": "unknown",
+      "slug": "openai/gpt-6-luna"
+    }
+  },
+  "fetched_utc": "2026-11-10T03:30:13.231138+00:00",
+  "models": {
+    "deepseek": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.3,
+      "output_per_million": 1.2,
+      "pinned_provider": "DeepSeek",
+      "quantization": "unknown",
+      "slug": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    "judge_primary": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.375,
+      "output_per_million": 1.875,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.8-flash"
+    },
+    "judge_secondary": {
+      "allow_fallbacks": false,
+      "context_length": 1000000,
+      "input_per_million": 2.0,
+      "output_per_million": 10.0,
+      "pinned_provider": "Anthropic",
+      "quantization": "unknown",
+      "slug": "anthropic/claude-sonnet-5.5"
+    },
+    "luna": {
+      "allow_fallbacks": false,
+      "context_length": 1050000,
+      "input_per_million": 0.049999999999999996,
+      "output_per_million": 0.25,
+      "pinned_provider": "OpenAI",
+      "quantization": "unknown",
+      "slug": "openai/gpt-6-luna"
+    }
+  }
+}

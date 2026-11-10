@@ -1,0 +1,9 @@
+global_cap_usd: 95.00
+openrouter_base_url: "https://openrouter.ai/api/v1"
+logs_dir: "logs"
+prices_dir: "data/prices"
+cache_dir: "cache"
+max_retries: 5
+request_timeout_s: 120
+backoff_base_s: 1.0
+backoff_max_s: 30.0
