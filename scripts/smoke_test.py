@@ -15,6 +15,7 @@ from memorytask.client import chat  # noqa: E402
 from memorytask.config import get_blocked_models, get_models, repo_root  # noqa: E402
 
 RUN_ID = "t01_smoke"
+CACHE_NAMESPACE = "t01_smoke"
 BUDGET_CAP = 1.00
 
 WEATHER_TOOL = [
@@ -78,13 +79,13 @@ def _parse_json_content(text: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
-def _summarize_from_logs(logs_dir: Path, model_alias: str, task_id: str) -> dict:
+def _summarize_from_logs(logs_dir: Path, task_id: str) -> dict:
     rows = [r for r in read_jsonl(logs_dir / f"{RUN_ID}.jsonl") if r.get("task_id") == task_id]
-    # Prefer non-cache successful rows for cost; sum all costs for this task.
     cost = sum(float(r.get("cost_usd") or 0.0) for r in rows)
     success = [r for r in rows if r.get("error") is None and r.get("http_status") == 200]
     last = success[-1] if success else (rows[-1] if rows else {})
     usage = last.get("usage") or {}
+    params = ((last.get("request") or {}).get("params") or {})
     return {
         "served_provider": last.get("provider_served"),
         "served_model": last.get("model_served"),
@@ -93,25 +94,35 @@ def _summarize_from_logs(logs_dir: Path, model_alias: str, task_id: str) -> dict
         "prompt_tokens": usage.get("prompt_tokens"),
         "completion_tokens": usage.get("completion_tokens"),
         "reasoning_tokens": usage.get("reasoning_tokens"),
+        "reasoning_requested": params.get("reasoning"),
         "cost_usd": cost,
         "cost_source": last.get("cost_source"),
         "cache_hit": last.get("cache_hit"),
+        "cache_namespace": last.get("cache_namespace"),
     }
 
 
-def run_plain(alias: str, role: str) -> dict:
-    task_id = f"{alias}_plain"
-    # Judges (esp. Gemini) may consume completion budget as reasoning_tokens first.
-    max_tokens = 512 if role == "judge" else 32
-    result = chat(
-        alias,
-        [{"role": "user", "content": "Reply with exactly the word OK and nothing else."}],
+def _chat_common(alias: str, role: str, task_id: str, **extra):
+    return dict(
         run_id=RUN_ID,
         task_id=task_id,
         role=role,
         budget_cap_usd=BUDGET_CAP,
+        cache_namespace=CACHE_NAMESPACE,
+        strict_provider=False,  # only smoke may pass False; still records mismatch
         temperature=0.0,
-        max_tokens=max_tokens,
+        **extra,
+    )
+
+
+def run_plain(alias: str, role: str) -> dict:
+    task_id = f"{alias}_plain"
+    # Use model default max_tokens for judges (2048); keep subjects short.
+    extra = {} if role == "judge" else {"max_tokens": 64}
+    result = chat(
+        alias,
+        [{"role": "user", "content": "Reply with exactly the word OK and nothing else."}],
+        **_chat_common(alias, role, task_id, **extra),
     )
     text = _assistant_text(result["response_raw"]).strip()
     passed = text.lower() == "ok"
@@ -123,13 +134,7 @@ def run_tool(alias: str, role: str) -> dict:
     result = chat(
         alias,
         [{"role": "user", "content": "What's the weather in Paris? Use the tool."}],
-        tools=WEATHER_TOOL,
-        run_id=RUN_ID,
-        task_id=task_id,
-        role=role,
-        budget_cap_usd=BUDGET_CAP,
-        temperature=0.0,
-        max_tokens=128,
+        **_chat_common(alias, role, task_id, tools=WEATHER_TOOL, max_tokens=256),
     )
     calls = _tool_calls(result["response_raw"])
     passed = False
@@ -159,13 +164,12 @@ def run_json(alias: str, role: str) -> dict:
                 "content": "Return a JSON object with keys result (integer 1) and reason (string).",
             }
         ],
-        response_format={"type": "json_object"},
-        run_id=RUN_ID,
-        task_id=task_id,
-        role=role,
-        budget_cap_usd=BUDGET_CAP,
-        temperature=0.0,
-        max_tokens=1024,
+        **_chat_common(
+            alias,
+            role,
+            task_id,
+            response_format={"type": "json_object"},
+        ),
     )
     text = _assistant_text(result["response_raw"])
     obj = _parse_json_content(text)
@@ -184,6 +188,7 @@ def main() -> int:
 
     results: dict = {
         "run_id": RUN_ID,
+        "cache_namespace": CACHE_NAMESPACE,
         "budget_cap_usd": BUDGET_CAP,
         "blocked_models": blocked,
         "models": {},
@@ -192,30 +197,34 @@ def main() -> int:
 
     if blocked:
         results["status"] = "blocked"
-        print("STOP: blocked models present; refusing full T01 smoke acceptance.")
+        print("STOP: blocked models present.")
         for alias, entry in blocked.items():
-            print(f"  {alias}: {entry.get('expected_slug')} — {entry.get('reason')}")
-            print(f"    alternatives: {entry.get('alternatives')}")
-        print("Running smoke only for currently configured (verified) models.\n")
+            print(f"  {alias}: {entry}")
 
     for alias, entry in models.items():
         role = entry["role"]
-        model_result: dict = {"role": role, "slug": entry["slug"], "checks": {}}
-        print(f"=== {alias} ({entry['slug']}) ===")
+        model_result: dict = {
+            "role": role,
+            "slug": entry["slug"],
+            "provider_order": entry.get("provider_order"),
+            "reasoning": entry.get("reasoning"),
+            "checks": {},
+        }
+        print(f"=== {alias} ({entry['slug']}) provider={entry.get('provider_order')} ===")
 
         try:
             plain = run_plain(alias, role)
-            plain.update(_summarize_from_logs(logs_dir, alias, plain["task_id"]))
+            plain.update(_summarize_from_logs(logs_dir, plain["task_id"]))
             model_result["checks"]["plain"] = plain
             print(f"  plain: {'PASS' if plain['pass'] else 'FAIL'} text={plain.get('text')!r}")
-        except Exception as exc:  # noqa: BLE001 — record and continue for report
+        except Exception as exc:  # noqa: BLE001
             model_result["checks"]["plain"] = {"pass": False, "error": str(exc)}
             print(f"  plain: ERROR {exc}")
 
         if role == "subject":
             try:
                 tool = run_tool(alias, role)
-                tool.update(_summarize_from_logs(logs_dir, alias, tool["task_id"]))
+                tool.update(_summarize_from_logs(logs_dir, tool["task_id"]))
                 model_result["checks"]["tool"] = tool
                 print(f"  tool:  {'PASS' if tool['pass'] else 'FAIL'}")
             except Exception as exc:  # noqa: BLE001
@@ -224,7 +233,7 @@ def main() -> int:
         else:
             try:
                 js = run_json(alias, role)
-                js.update(_summarize_from_logs(logs_dir, alias, js["task_id"]))
+                js.update(_summarize_from_logs(logs_dir, js["task_id"]))
                 model_result["checks"]["json"] = js
                 print(f"  json:  {'PASS' if js['pass'] else 'FAIL'}")
             except Exception as exc:  # noqa: BLE001
@@ -237,16 +246,25 @@ def main() -> int:
     out_path.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"\nWrote {out_path}")
 
-    # Exit non-zero if any configured check failed OR if blocked models remain.
     failed = False
     for alias, mr in results["models"].items():
         for name, check in mr["checks"].items():
             if not check.get("pass"):
                 failed = True
                 print(f"FAIL: {alias}.{name}")
+            elif check.get("provider_mismatch"):
+                failed = True
+                print(f"FAIL: {alias}.{name} provider_mismatch")
+            elif (
+                check.get("served_provider")
+                and check.get("provider_requested")
+                and check.get("served_provider") != check.get("provider_requested")
+            ):
+                failed = True
+                print(f"FAIL: {alias}.{name} provider_served != provider_requested")
     if blocked:
         failed = True
-        print("FAIL: blocked_models present — T01 incomplete until slug decision.")
+        print("FAIL: blocked_models present")
     return 1 if failed else 0
 
 

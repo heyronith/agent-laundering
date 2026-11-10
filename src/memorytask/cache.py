@@ -25,8 +25,10 @@ def make_cache_key(
     max_tokens: int | None,
     seed: int | None,
     sample_index: int,
+    cache_namespace: str,
 ) -> str:
     payload = {
+        "cache_namespace": cache_namespace,
         "model_slug": model_slug,
         "provider_order": provider_order,
         "messages": messages,
@@ -62,7 +64,6 @@ def build_cache_index(logs_dir: Path) -> dict[str, dict[str, Any]]:
         key = record.get("cache_key")
         if not key:
             continue
-        # Prefer original paid responses over later cache-hit log lines.
         existing = index.get(key)
         if existing is None:
             index[key] = record
@@ -70,6 +71,49 @@ def build_cache_index(logs_dir: Path) -> dict[str, dict[str, Any]]:
         if existing.get("cache_hit") and not record.get("cache_hit"):
             index[key] = record
     return index
+
+
+class ProcessCacheIndex:
+    """In-memory cache index: scan logs once per logs_dir per process, then update in place."""
+
+    def __init__(self) -> None:
+        self._indexes: dict[str, dict[str, dict[str, Any]]] = {}
+        self.build_counts: dict[str, int] = {}
+
+    def _key(self, logs_dir: Path) -> str:
+        return str(logs_dir.resolve())
+
+    def get(self, logs_dir: Path) -> dict[str, dict[str, Any]]:
+        key = self._key(logs_dir)
+        if key not in self._indexes:
+            self._indexes[key] = build_cache_index(logs_dir)
+            self.build_counts[key] = self.build_counts.get(key, 0) + 1
+        return self._indexes[key]
+
+    def update_after_success(self, logs_dir: Path, record: dict[str, Any]) -> None:
+        if not is_successful_call(record):
+            return
+        key = record.get("cache_key")
+        if not key:
+            return
+        index = self.get(logs_dir)
+        existing = index.get(key)
+        if existing is None:
+            index[key] = record
+            return
+        if existing.get("cache_hit") and not record.get("cache_hit"):
+            index[key] = record
+
+    def reset(self) -> None:
+        self._indexes.clear()
+        self.build_counts.clear()
+
+
+PROCESS_CACHE_INDEX = ProcessCacheIndex()
+
+
+def reset_process_cache() -> None:
+    PROCESS_CACHE_INDEX.reset()
 
 
 def write_cache_index(cache_dir: Path, index: dict[str, dict[str, Any]]) -> Path:

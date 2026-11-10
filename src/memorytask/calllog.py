@@ -28,6 +28,7 @@ REQUIRED_FIELDS = (
     "error",
     "cache_key",
     "cache_hit",
+    "cache_namespace",
     "sample_index",
     "seed",
     "provider_mismatch",

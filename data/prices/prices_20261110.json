@@ -14,8 +14,8 @@
       "context_length": 1048576,
       "input_per_million": 0.3,
       "output_per_million": 1.2,
-      "pinned_provider": "DeepSeek",
-      "quantization": "unknown",
+      "pinned_provider": "Nebius",
+      "quantization": "fp8",
       "slug": "deepseek/deepseek-v4.1-flash-1017"
     },
     "google/gemini-3.8-flash": {
@@ -35,18 +35,36 @@
       "pinned_provider": "OpenAI",
       "quantization": "unknown",
       "slug": "openai/gpt-6-luna"
+    },
+    "z-ai/glm-5.3-flash": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.15,
+      "output_per_million": 0.5,
+      "pinned_provider": "Z.AI",
+      "quantization": "fp8",
+      "slug": "z-ai/glm-5.3-flash"
     }
   },
-  "fetched_utc": "2026-11-10T03:30:13.231138+00:00",
+  "fetched_utc": "2026-11-10T03:35:55.238160+00:00",
   "models": {
     "deepseek": {
       "allow_fallbacks": false,
       "context_length": 1048576,
       "input_per_million": 0.3,
       "output_per_million": 1.2,
-      "pinned_provider": "DeepSeek",
-      "quantization": "unknown",
+      "pinned_provider": "Nebius",
+      "quantization": "fp8",
       "slug": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    "glm": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.15,
+      "output_per_million": 0.5,
+      "pinned_provider": "Z.AI",
+      "quantization": "fp8",
+      "slug": "z-ai/glm-5.3-flash"
     },
     "judge_primary": {
       "allow_fallbacks": false,

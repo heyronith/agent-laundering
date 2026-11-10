@@ -1,21 +1,42 @@
 # Subject + judge models for memorytask.
-# T01 STOP: brief slug z-ai/glm-5.3-flash-20260826 was NOT found on OpenRouter.
-# No substitute was chosen (standing rule: do not silently substitute).
-# See blocked_models below and reports/T01_report.md.
+# PROVIDER RULE: prefer first-party; else single third-party in {bf16,fp16,fp8};
+# never fp4/mxfp4/int4; uptime >= 99%; pin exactly one provider.
 
 models:
   deepseek:
+    # T01-FIX D003: first-party DeepSeek blocked by account training guardrail (kept OFF).
+    # Tried order and result: Nebius(fp8) PASSED smoke a+b first; Parasail/Novita not needed.
+    # Nebius fp8 @ $0.30/$1.20 per 1M in/out, uptime_last_30m=100.
     slug: deepseek/deepseek-v4.1-flash-1017
     role: subject
     provider_order:
-      - DeepSeek
+      - Nebius
     allow_fallbacks: false
-    quantization: unknown
+    quantization: fp8
     context_length: 1048576
     temperature: 1.0
     max_tokens: 256
+    reasoning:
+      enabled: false
+
+  glm:
+    # T01-FIX D002: z-ai/glm-5.3-flash (dated slug not listed).
+    # First-party Z.AI fp8 @ $0.15/$0.50 per 1M in/out, uptime_last_30m=100.
+    # reasoning.enabled=false rejected ("Reasoning is mandatory..."); using lowest effort.
+    slug: z-ai/glm-5.3-flash
+    role: subject
+    provider_order:
+      - Z.AI
+    allow_fallbacks: false
+    quantization: fp8
+    context_length: 1048576
+    temperature: 1.0
+    max_tokens: 256
+    reasoning:
+      effort: low
 
   luna:
+    # First-party OpenAI; quantization unknown on endpoints; prices from pinned endpoint.
     slug: openai/gpt-6-luna
     role: subject
     provider_order:
@@ -25,8 +46,11 @@ models:
     context_length: 1050000
     temperature: 1.0
     max_tokens: 256
+    reasoning:
+      enabled: false
 
   judge_primary:
+    # First-party Google AI Studio; reasoning effort low; max_tokens 2048 (T01-FIX D004).
     slug: google/gemini-3.8-flash
     role: judge
     provider_order:
@@ -35,9 +59,12 @@ models:
     quantization: unknown
     context_length: 1048576
     temperature: 1.0
-    max_tokens: 256
+    max_tokens: 2048
+    reasoning:
+      effort: low
 
   judge_secondary:
+    # First-party Anthropic Claude Sonnet 5.5; reasoning effort low; max_tokens 2048.
     slug: anthropic/claude-sonnet-5.5
     role: judge
     provider_order:
@@ -46,22 +73,8 @@ models:
     quantization: unknown
     context_length: 1000000
     temperature: 1.0
-    max_tokens: 256
+    max_tokens: 2048
+    reasoning:
+      effort: low
 
-# Expected by T01 brief but unavailable on OpenRouter at verification time.
-# Alternatives observed (not selected):
-#   - z-ai/glm-5.3-flash          (first-party provider Z.AI present)
-#   - z-ai/glm-5.3-flashx         (first-party provider Z.AI present)
-#   - z-ai/glm-5.3-flashx-legal
-#   - z-ai/glm-5.3-flash:batch
-blocked_models:
-  glm:
-    expected_slug: z-ai/glm-5.3-flash-20260826
-    role: subject
-    status: unavailable
-    reason: "Exact slug not present in GET /api/v1/models"
-    alternatives:
-      - z-ai/glm-5.3-flash
-      - z-ai/glm-5.3-flashx
-      - z-ai/glm-5.3-flashx-legal
-      - z-ai/glm-5.3-flash:batch
+blocked_models: {}

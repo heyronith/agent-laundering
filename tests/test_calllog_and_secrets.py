@@ -21,8 +21,8 @@ def _sample_record(**overrides):
         "model_alias": "deepseek",
         "model_slug_requested": "deepseek/deepseek-v4.1-flash-1017",
         "model_served": "deepseek/deepseek-v4.1-flash-1017",
-        "provider_requested": "DeepSeek",
-        "provider_served": "DeepSeek",
+        "provider_requested": "Nebius",
+        "provider_served": "Nebius",
         "request": {"messages": [{"role": "user", "content": "hi"}], "tools": None, "params": {}},
         "response_raw": {"id": "gen_1", "choices": []},
         "usage": {"prompt_tokens": 1, "completion_tokens": 1},
@@ -33,6 +33,7 @@ def _sample_record(**overrides):
         "error": None,
         "cache_key": "abc",
         "cache_hit": False,
+        "cache_namespace": "t01_smoke",
         "sample_index": 0,
         "seed": None,
         "provider_mismatch": False,
@@ -68,8 +69,6 @@ def test_logger_rejects_authorization_bearer(tmp_path: Path):
 def test_repo_has_no_sk_or_in_committed_files():
     """Grep for OpenRouter key-shaped secrets in git-tracked files only."""
     root = Path(__file__).resolve().parents[1]
-    # Real OpenRouter keys look like sk_or_v1- + long hex. Exclude the checker
-    # substring itself and short test fixtures by requiring >=32 hex chars.
     result = subprocess.run(
         [
             "git",
@@ -85,6 +84,5 @@ def test_repo_has_no_sk_or_in_committed_files():
         capture_output=True,
         text=True,
     )
-    # git grep exit 1 = no matches; 0 = matches found
     assert result.returncode in (0, 1)
     assert result.stdout.strip() == "", f"Found secret-shaped sk_or_ in tracked files:\n{result.stdout}"

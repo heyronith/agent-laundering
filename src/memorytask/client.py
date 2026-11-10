@@ -18,7 +18,7 @@ from memorytask.budget import (
     check_budget,
     estimate_worst_case_cost_usd,
 )
-from memorytask.cache import build_cache_index, make_cache_key
+from memorytask.cache import PROCESS_CACHE_INDEX, make_cache_key
 from memorytask.calllog import append_call_log
 from memorytask.config import (
     get_api_key,
@@ -50,12 +50,10 @@ def _prices_for_slug(snapshot: dict[str, Any] | None, slug: str) -> tuple[float,
     if not snapshot:
         return 10.0, 40.0
     models = snapshot.get("models") or snapshot.get("data") or []
-    # Our check_prices format uses {"models": {alias: {...}}} or list
     if isinstance(models, dict):
         for entry in models.values():
             if entry.get("slug") == slug:
                 return float(entry["input_per_million"]), float(entry["output_per_million"])
-        # also allow slug keys
         if slug in models:
             entry = models[slug]
             return float(entry["input_per_million"]), float(entry["output_per_million"])
@@ -75,7 +73,6 @@ def _prices_for_slug(snapshot: dict[str, Any] | None, slug: str) -> tuple[float,
 
 def _estimate_prompt_tokens(messages: list[dict[str, Any]], tools: Any) -> int:
     blob = json.dumps({"messages": messages, "tools": tools}, ensure_ascii=False)
-    # Rough 4 chars/token worst-case under-estimate protection: use 2 chars/token.
     return max(32, len(blob) // 2)
 
 
@@ -85,8 +82,8 @@ def _extract_usage(response_json: dict[str, Any]) -> dict[str, Any]:
         "prompt_tokens": usage.get("prompt_tokens"),
         "completion_tokens": usage.get("completion_tokens"),
         "total_tokens": usage.get("total_tokens"),
+        "reasoning_tokens": None,
     }
-    # OpenRouter may nest reasoning tokens in completion_tokens_details or native fields.
     details = usage.get("completion_tokens_details") or {}
     if "reasoning_tokens" in details:
         out["reasoning_tokens"] = details.get("reasoning_tokens")
@@ -127,10 +124,30 @@ def _provider_from_response(response_json: dict[str, Any], headers: httpx.Header
     return None
 
 
+def _request_params(
+    *,
+    temp: float | None,
+    max_toks: int | None,
+    seed: int | None,
+    response_format: Any,
+    provider: dict[str, Any],
+    reasoning: Any,
+) -> dict[str, Any]:
+    return {
+        "temperature": temp,
+        "max_tokens": max_toks,
+        "seed": seed,
+        "response_format": response_format,
+        "provider": provider,
+        "reasoning": reasoning,
+    }
+
+
 def chat(
     model_alias: str,
     messages: list[dict[str, Any]],
     *,
+    cache_namespace: str,
     tools: list[dict[str, Any]] | None = None,
     response_format: dict[str, Any] | None = None,
     temperature: float | None = None,
@@ -141,6 +158,7 @@ def chat(
     role: str,
     sample_index: int = 0,
     budget_cap_usd: float,
+    strict_provider: bool = True,
     logs_dir: Path | None = None,
     prices_dir: Path | None = None,
     http_client: httpx.Client | None = None,
@@ -152,6 +170,9 @@ def chat(
     Returns a dict with keys: response_raw, usage, cost_usd, cost_source, cache_hit,
     call_id, provider_served, model_served, log_record.
     """
+    if not cache_namespace:
+        raise ValueError("cache_namespace is required")
+
     defaults = load_run_defaults()
     root = repo_root()
     logs_dir = logs_dir or (root / defaults.get("logs_dir", "logs"))
@@ -166,12 +187,15 @@ def chat(
     model_cfg = get_model(model_alias)
     slug = model_cfg["slug"]
     provider_order = list(model_cfg["provider_order"])
+    if len(provider_order) != 1:
+        raise ValueError(f"Model {model_alias}: provider_order must pin exactly one provider")
     allow_fallbacks = bool(model_cfg.get("allow_fallbacks", False))
     if allow_fallbacks:
         raise ValueError(f"Model {model_alias} must have allow_fallbacks: false")
 
     temp = model_cfg["temperature"] if temperature is None else temperature
     max_toks = model_cfg["max_tokens"] if max_tokens is None else max_tokens
+    reasoning_cfg = model_cfg.get("reasoning")
 
     cache_key = make_cache_key(
         model_slug=slug,
@@ -183,6 +207,7 @@ def chat(
         max_tokens=max_toks,
         seed=seed,
         sample_index=sample_index,
+        cache_namespace=cache_namespace,
     )
 
     request_payload: dict[str, Any] = {
@@ -193,6 +218,8 @@ def chat(
         "provider": {"order": provider_order, "allow_fallbacks": False},
         "usage": {"include": True},
     }
+    if reasoning_cfg is not None:
+        request_payload["reasoning"] = reasoning_cfg
     if tools is not None:
         request_payload["tools"] = tools
     if response_format is not None:
@@ -200,8 +227,8 @@ def chat(
     if seed is not None:
         request_payload["seed"] = seed
 
-    # Cache check (logs are source of truth).
-    index = build_cache_index(logs_dir)
+    # Cache check — process-level index (scanned once per logs_dir).
+    index = PROCESS_CACHE_INDEX.get(logs_dir)
     if cache_key in index:
         cached = index[cache_key]
         call_id = str(uuid.uuid4())
@@ -215,18 +242,19 @@ def chat(
             "model_alias": model_alias,
             "model_slug_requested": slug,
             "model_served": cached.get("model_served"),
-            "provider_requested": provider_order[0] if provider_order else None,
+            "provider_requested": provider_order[0],
             "provider_served": cached.get("provider_served"),
             "request": {
                 "messages": messages,
                 "tools": tools,
-                "params": {
-                    "temperature": temp,
-                    "max_tokens": max_toks,
-                    "seed": seed,
-                    "response_format": response_format,
-                    "provider": request_payload["provider"],
-                },
+                "params": _request_params(
+                    temp=temp,
+                    max_toks=max_toks,
+                    seed=seed,
+                    response_format=response_format,
+                    provider=request_payload["provider"],
+                    reasoning=reasoning_cfg,
+                ),
             },
             "response_raw": cached.get("response_raw"),
             "usage": cached.get("usage") or {},
@@ -237,6 +265,7 @@ def chat(
             "error": None,
             "cache_key": cache_key,
             "cache_hit": True,
+            "cache_namespace": cache_namespace,
             "sample_index": sample_index,
             "seed": seed,
             "provider_mismatch": False,
@@ -324,11 +353,13 @@ def chat(
                         seed=seed,
                         response_format=response_format,
                         request_payload=request_payload,
+                        reasoning=reasoning_cfg,
                         response_json=response_json,
                         latency_ms=latency_ms,
                         http_status=resp.status_code,
                         error=last_error,
                         cache_key=cache_key,
+                        cache_namespace=cache_namespace,
                         sample_index=sample_index,
                     )
                     append_call_log(logs_dir, run_id, err_record)
@@ -355,11 +386,13 @@ def chat(
                         seed=seed,
                         response_format=response_format,
                         request_payload=request_payload,
+                        reasoning=reasoning_cfg,
                         response_json=response_json,
                         latency_ms=latency_ms,
                         http_status=resp.status_code,
                         error=last_error,
                         cache_key=cache_key,
+                        cache_namespace=cache_namespace,
                         sample_index=sample_index,
                     )
                     append_call_log(logs_dir, run_id, err_record)
@@ -388,11 +421,13 @@ def chat(
                     seed=seed,
                     response_format=response_format,
                     request_payload=request_payload,
+                    reasoning=reasoning_cfg,
                     response_json=None,
                     latency_ms=latency_ms,
                     http_status=None,
                     error=last_error,
                     cache_key=cache_key,
+                    cache_namespace=cache_namespace,
                     sample_index=sample_index,
                 )
                 append_call_log(logs_dir, run_id, err_record)
@@ -400,8 +435,6 @@ def chat(
                     break
                 sleep_fn(min(backoff_max, backoff_base * (2 ** (attempt - 1))))
                 continue
-        else:
-            pass
 
         if response_json is None or last_status is None or last_status >= 400:
             raise RuntimeError(
@@ -437,11 +470,13 @@ def chat(
             cost = _cost_from_price_snapshot(snapshot, slug, usage)
             cost_source = "price_snapshot"
 
-        provider_requested = provider_order[0] if provider_order else None
+        provider_requested = provider_order[0]
         provider_served = _provider_from_response(response_json, response_headers or httpx.Headers())
         model_served = response_json.get("model")
         provider_mismatch = bool(
-            provider_served and provider_requested and provider_served != provider_requested
+            provider_served is not None
+            and provider_requested is not None
+            and provider_served != provider_requested
         )
         if provider_mismatch:
             warnings.warn(
@@ -465,13 +500,14 @@ def chat(
             "request": {
                 "messages": messages,
                 "tools": tools,
-                "params": {
-                    "temperature": temp,
-                    "max_tokens": max_toks,
-                    "seed": seed,
-                    "response_format": response_format,
-                    "provider": request_payload["provider"],
-                },
+                "params": _request_params(
+                    temp=temp,
+                    max_toks=max_toks,
+                    seed=seed,
+                    response_format=response_format,
+                    provider=request_payload["provider"],
+                    reasoning=reasoning_cfg,
+                ),
             },
             "response_raw": response_json,
             "usage": usage,
@@ -482,6 +518,7 @@ def chat(
             "error": None,
             "cache_key": cache_key,
             "cache_hit": False,
+            "cache_namespace": cache_namespace,
             "sample_index": sample_index,
             "seed": seed,
             "provider_mismatch": provider_mismatch,
@@ -495,6 +532,13 @@ def chat(
             cost_usd=float(cost),
             timestamp=record["timestamp_utc"],
         )
+        PROCESS_CACHE_INDEX.update_after_success(logs_dir, record)
+
+        if provider_mismatch and strict_provider:
+            raise ProviderMismatchError(
+                f"provider_mismatch: requested={provider_requested!r} served={provider_served!r}"
+            )
+
         return {
             "response_raw": response_json,
             "usage": usage,
@@ -528,13 +572,14 @@ def _failed_record(**kwargs: Any) -> dict[str, Any]:
         "request": {
             "messages": kwargs["messages"],
             "tools": kwargs["tools"],
-            "params": {
-                "temperature": kwargs["temp"],
-                "max_tokens": kwargs["max_toks"],
-                "seed": kwargs["seed"],
-                "response_format": kwargs["response_format"],
-                "provider": kwargs["request_payload"]["provider"],
-            },
+            "params": _request_params(
+                temp=kwargs["temp"],
+                max_toks=kwargs["max_toks"],
+                seed=kwargs["seed"],
+                response_format=kwargs["response_format"],
+                provider=kwargs["request_payload"]["provider"],
+                reasoning=kwargs.get("reasoning"),
+            ),
         },
         "response_raw": kwargs["response_json"],
         "usage": {},
@@ -545,11 +590,11 @@ def _failed_record(**kwargs: Any) -> dict[str, Any]:
         "error": kwargs["error"],
         "cache_key": kwargs["cache_key"],
         "cache_hit": False,
+        "cache_namespace": kwargs["cache_namespace"],
         "sample_index": kwargs["sample_index"],
         "seed": kwargs["seed"],
         "provider_mismatch": False,
     }
 
 
-# Re-export for callers/tests
 __all__ = ["chat", "BudgetExceeded", "ProviderMismatchError"]

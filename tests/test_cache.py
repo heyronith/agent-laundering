@@ -3,7 +3,7 @@ from __future__ import annotations
 from memorytask.cache import make_cache_key
 
 
-def test_cache_key_deterministic_and_sample_index_matters():
+def _base_kwargs(**overrides):
     kwargs = dict(
         model_slug="openai/gpt-6-luna",
         provider_order=["OpenAI"],
@@ -14,13 +14,22 @@ def test_cache_key_deterministic_and_sample_index_matters():
         max_tokens=64,
         seed=7,
         sample_index=0,
+        cache_namespace="t01_smoke",
     )
-    k1 = make_cache_key(**kwargs)
-    k2 = make_cache_key(**kwargs)
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_cache_key_deterministic_and_sample_index_matters():
+    k1 = make_cache_key(**_base_kwargs())
+    k2 = make_cache_key(**_base_kwargs())
     assert k1 == k2
     assert len(k1) == 64
-
-    kwargs2 = dict(kwargs)
-    kwargs2["sample_index"] = 1
-    k3 = make_cache_key(**kwargs2)
+    k3 = make_cache_key(**_base_kwargs(sample_index=1))
     assert k3 != k1
+
+
+def test_different_cache_namespace_gives_different_key():
+    k1 = make_cache_key(**_base_kwargs(cache_namespace="t01_smoke"))
+    k2 = make_cache_key(**_base_kwargs(cache_namespace="t05_killtest"))
+    assert k1 != k2
