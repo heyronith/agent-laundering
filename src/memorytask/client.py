@@ -132,6 +132,9 @@ def _request_params(
     response_format: Any,
     provider: dict[str, Any],
     reasoning: Any,
+    top_p: float | None = None,
+    frequency_penalty: float | None = None,
+    presence_penalty: float | None = None,
 ) -> dict[str, Any]:
     return {
         "temperature": temp,
@@ -140,6 +143,9 @@ def _request_params(
         "response_format": response_format,
         "provider": provider,
         "reasoning": reasoning,
+        "top_p": top_p,
+        "frequency_penalty": frequency_penalty,
+        "presence_penalty": presence_penalty,
     }
 
 
@@ -152,6 +158,9 @@ def chat(
     response_format: dict[str, Any] | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    top_p: float | None = None,
+    frequency_penalty: float | None = None,
+    presence_penalty: float | None = None,
     seed: int | None = None,
     run_id: str,
     task_id: str,
@@ -208,6 +217,9 @@ def chat(
         seed=seed,
         sample_index=sample_index,
         cache_namespace=cache_namespace,
+        top_p=top_p,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty,
     )
 
     request_payload: dict[str, Any] = {
@@ -226,6 +238,12 @@ def chat(
         request_payload["response_format"] = response_format
     if seed is not None:
         request_payload["seed"] = seed
+    if top_p is not None:
+        request_payload["top_p"] = top_p
+    if frequency_penalty is not None:
+        request_payload["frequency_penalty"] = frequency_penalty
+    if presence_penalty is not None:
+        request_payload["presence_penalty"] = presence_penalty
 
     # Cache check — process-level index (scanned once per logs_dir).
     index = PROCESS_CACHE_INDEX.get(logs_dir)
@@ -254,6 +272,9 @@ def chat(
                     response_format=response_format,
                     provider=request_payload["provider"],
                     reasoning=reasoning_cfg,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
                 ),
             },
             "response_raw": cached.get("response_raw"),
@@ -361,6 +382,9 @@ def chat(
                         cache_key=cache_key,
                         cache_namespace=cache_namespace,
                         sample_index=sample_index,
+                        top_p=top_p,
+                        frequency_penalty=frequency_penalty,
+                        presence_penalty=presence_penalty,
                     )
                     append_call_log(logs_dir, run_id, err_record)
                     if attempt >= max_retries:
@@ -394,6 +418,9 @@ def chat(
                         cache_key=cache_key,
                         cache_namespace=cache_namespace,
                         sample_index=sample_index,
+                        top_p=top_p,
+                        frequency_penalty=frequency_penalty,
+                        presence_penalty=presence_penalty,
                     )
                     append_call_log(logs_dir, run_id, err_record)
                     raise RuntimeError(last_error)
@@ -429,6 +456,9 @@ def chat(
                     cache_key=cache_key,
                     cache_namespace=cache_namespace,
                     sample_index=sample_index,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
                 )
                 append_call_log(logs_dir, run_id, err_record)
                 if attempt >= max_retries:
@@ -507,6 +537,9 @@ def chat(
                     response_format=response_format,
                     provider=request_payload["provider"],
                     reasoning=reasoning_cfg,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
                 ),
             },
             "response_raw": response_json,
@@ -579,6 +612,9 @@ def _failed_record(**kwargs: Any) -> dict[str, Any]:
                 response_format=kwargs["response_format"],
                 provider=kwargs["request_payload"]["provider"],
                 reasoning=kwargs.get("reasoning"),
+                top_p=kwargs.get("top_p"),
+                frequency_penalty=kwargs.get("frequency_penalty"),
+                presence_penalty=kwargs.get("presence_penalty"),
             ),
         },
         "response_raw": kwargs["response_json"],

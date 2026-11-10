@@ -17,7 +17,7 @@ models:
     temperature: 1.0
     max_tokens: 256
     reasoning:
-      enabled: false
+      effort: low
 
   glm:
     # T01-FIX D002: z-ai/glm-5.3-flash (dated slug not listed).
@@ -47,7 +47,7 @@ models:
     temperature: 1.0
     max_tokens: 256
     reasoning:
-      enabled: false
+      effort: low
 
   judge_primary:
     # First-party Google AI Studio; reasoning effort low; max_tokens 2048 (T01-FIX D004).

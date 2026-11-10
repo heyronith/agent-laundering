@@ -26,6 +26,9 @@ def make_cache_key(
     seed: int | None,
     sample_index: int,
     cache_namespace: str,
+    top_p: float | None = None,
+    frequency_penalty: float | None = None,
+    presence_penalty: float | None = None,
 ) -> str:
     payload = {
         "cache_namespace": cache_namespace,
@@ -38,6 +41,9 @@ def make_cache_key(
         "max_tokens": max_tokens,
         "seed": seed,
         "sample_index": sample_index,
+        "top_p": top_p,
+        "frequency_penalty": frequency_penalty,
+        "presence_penalty": presence_penalty,
     }
     return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 

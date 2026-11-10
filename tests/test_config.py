@@ -20,8 +20,6 @@ def test_config_loads_and_providers_pinned():
         if entry["role"] == "judge":
             assert entry["reasoning"] == {"effort": "low"}
             assert entry["max_tokens"] == 2048
-        elif alias == "glm":
-            # Z.AI rejects reasoning.enabled=false; lowest effort recorded.
-            assert entry["reasoning"] == {"effort": "low"}
         else:
-            assert entry["reasoning"] == {"enabled": False}
+            # D005: all subjects use reasoning effort=low.
+            assert entry["reasoning"] == {"effort": "low"}

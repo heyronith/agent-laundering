@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -178,6 +179,21 @@ def run_json(alias: str, role: str) -> dict:
 
 
 def main() -> int:
+    global RUN_ID, CACHE_NAMESPACE, BUDGET_CAP
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--models", nargs="*", default=None, help="Subset of model aliases")
+    parser.add_argument("--namespace", default=None)
+    parser.add_argument("--run-id", default=None)
+    parser.add_argument("--cap", type=float, default=None)
+    parser.add_argument("--results-json", default=None)
+    args = parser.parse_args()
+    if args.namespace:
+        CACHE_NAMESPACE = args.namespace
+    if args.run_id:
+        RUN_ID = args.run_id
+    if args.cap is not None:
+        BUDGET_CAP = args.cap
+
     root = repo_root()
     logs_dir = root / "logs"
     reports_dir = root / "reports"
@@ -185,6 +201,11 @@ def main() -> int:
 
     blocked = get_blocked_models()
     models = get_models()
+    if args.models:
+        missing = [m for m in args.models if m not in models]
+        if missing:
+            raise SystemExit(f"Unknown models: {missing}")
+        models = {m: models[m] for m in args.models}
 
     results: dict = {
         "run_id": RUN_ID,
@@ -242,7 +263,10 @@ def main() -> int:
 
         results["models"][alias] = model_result
 
-    out_path = reports_dir / "T01_smoke_results.json"
+    out_name = args.results_json or (
+        "T02_resmoke_results.json" if CACHE_NAMESPACE.startswith("t02_") else "T01_smoke_results.json"
+    )
+    out_path = reports_dir / out_name
     out_path.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"\nWrote {out_path}")
 
