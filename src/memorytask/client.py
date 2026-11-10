@@ -135,6 +135,7 @@ def _request_params(
     top_p: float | None = None,
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
+    stop: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "temperature": temp,
@@ -146,6 +147,7 @@ def _request_params(
         "top_p": top_p,
         "frequency_penalty": frequency_penalty,
         "presence_penalty": presence_penalty,
+        "stop": stop,
     }
 
 
@@ -161,6 +163,7 @@ def chat(
     top_p: float | None = None,
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
+    stop: list[str] | None = None,
     seed: int | None = None,
     run_id: str,
     task_id: str,
@@ -220,6 +223,7 @@ def chat(
         top_p=top_p,
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
+        stop=stop,
     )
 
     request_payload: dict[str, Any] = {
@@ -244,6 +248,8 @@ def chat(
         request_payload["frequency_penalty"] = frequency_penalty
     if presence_penalty is not None:
         request_payload["presence_penalty"] = presence_penalty
+    if stop is not None:
+        request_payload["stop"] = stop
 
     # Cache check — process-level index (scanned once per logs_dir).
     index = PROCESS_CACHE_INDEX.get(logs_dir)
@@ -275,6 +281,7 @@ def chat(
                     top_p=top_p,
                     frequency_penalty=frequency_penalty,
                     presence_penalty=presence_penalty,
+                    stop=stop,
                 ),
             },
             "response_raw": cached.get("response_raw"),
@@ -385,6 +392,7 @@ def chat(
                         top_p=top_p,
                         frequency_penalty=frequency_penalty,
                         presence_penalty=presence_penalty,
+                        stop=stop,
                     )
                     append_call_log(logs_dir, run_id, err_record)
                     if attempt >= max_retries:
@@ -421,6 +429,7 @@ def chat(
                         top_p=top_p,
                         frequency_penalty=frequency_penalty,
                         presence_penalty=presence_penalty,
+                        stop=stop,
                     )
                     append_call_log(logs_dir, run_id, err_record)
                     raise RuntimeError(last_error)
@@ -459,6 +468,7 @@ def chat(
                     top_p=top_p,
                     frequency_penalty=frequency_penalty,
                     presence_penalty=presence_penalty,
+                    stop=stop,
                 )
                 append_call_log(logs_dir, run_id, err_record)
                 if attempt >= max_retries:
@@ -540,6 +550,7 @@ def chat(
                     top_p=top_p,
                     frequency_penalty=frequency_penalty,
                     presence_penalty=presence_penalty,
+                    stop=stop,
                 ),
             },
             "response_raw": response_json,
@@ -615,6 +626,7 @@ def _failed_record(**kwargs: Any) -> dict[str, Any]:
                 top_p=kwargs.get("top_p"),
                 frequency_penalty=kwargs.get("frequency_penalty"),
                 presence_penalty=kwargs.get("presence_penalty"),
+                stop=kwargs.get("stop"),
             ),
         },
         "response_raw": kwargs["response_json"],

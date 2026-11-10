@@ -29,6 +29,7 @@ def make_cache_key(
     top_p: float | None = None,
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
+    stop: list[str] | None = None,
 ) -> str:
     payload = {
         "cache_namespace": cache_namespace,
@@ -44,6 +45,7 @@ def make_cache_key(
         "top_p": top_p,
         "frequency_penalty": frequency_penalty,
         "presence_penalty": presence_penalty,
+        "stop": stop,
     }
     return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
