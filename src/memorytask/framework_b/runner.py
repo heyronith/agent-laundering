@@ -66,6 +66,29 @@ def generate_random_content(length: int = 50) -> str:
     return "".join(random.choice(chars) for _ in range(length))
 
 
+def create_dummy_pptx(file_path: str, num_slides: int = 2) -> None:
+    """Upstream evaluation.create_dummy_pptx (python-pptx)."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+
+    prs = Presentation()
+    blank_slide_layout = prs.slide_layouts[6]
+    for i in range(num_slides):
+        slide = prs.slides.add_slide(blank_slide_layout)
+        textbox = slide.shapes.add_textbox(Inches(1.0), Inches(1.5), Inches(7.5), Inches(4.0))
+        text_frame = textbox.text_frame
+        text_frame.word_wrap = True
+        p = text_frame.paragraphs[0]
+        p.text = f"slide {i + 1} title"
+        p.font.bold = True
+        p.font.size = Pt(24)
+        p = text_frame.add_paragraph()
+        p.text = generate_random_content()
+        p.font.size = Pt(14)
+    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+    prs.save(file_path)
+
+
 @contextmanager
 def pushd(path: str | Path) -> Iterator[None]:
     old = os.getcwd()
@@ -273,10 +296,14 @@ def run_episode(
     )
     model = MemorytaskModel(**model_kwargs)
 
-    if task_type not in (1, 4, 5):
-        raise ValueError(f"T03 only supports task types 1/4/5; got {task_type}")
+    if task_type not in (1, 2, 3, 4, 5):
+        raise ValueError(f"Unsupported task type: {task_type}")
 
-    tools = get_custom_tools([])
+    # Upstream agent_runner: types 1/4/5 → all tools broken; else read_txt working.
+    if task_type in (1, 4, 5):
+        tools = get_custom_tools([])
+    else:
+        tools = get_custom_tools(["read_txt"])
     agent = CodeAgent(
         tools=tools,
         model=model,
@@ -300,6 +327,15 @@ def run_episode(
                 Path(task["file_name"]).parent.mkdir(parents=True, exist_ok=True)
                 Path(task["file_name"]).write_text(generate_random_content(), encoding="utf-8")
                 attached = str(Path(task["file_name"]).resolve())
+            elif task_type == 2:
+                Path(task["file_name"]).parent.mkdir(parents=True, exist_ok=True)
+                Path(task["file_name"]).write_text(task["file_content"], encoding="utf-8")
+                attached = str(Path(task["file_name"]).resolve())
+            elif task_type == 3:
+                Path(task["txt_file_name"]).parent.mkdir(parents=True, exist_ok=True)
+                Path(task["txt_file_name"]).write_text(task["file_content"], encoding="utf-8")
+                create_dummy_pptx(task["pptx_file_name"], num_slides=2)
+                attached = str(Path(task["pptx_file_name"]).resolve())
 
             buf = io.StringIO()
             with redirect_stdout(buf), redirect_stderr(buf):
@@ -409,6 +445,10 @@ def run_episode(
         )
         if task_type == 1:
             upstream_result, judge_details = judge.judge_type_1(task, final_answer)
+        elif task_type == 2:
+            upstream_result, judge_details = judge.judge_type_2(task, final_answer)
+        elif task_type == 3:
+            upstream_result, judge_details = judge.judge_type_3(task, final_answer)
         else:
             upstream_result, judge_details = judge.judge_type_4_and_5(task, final_answer, file_content)
         judge_call_ids = list(judge.call_ids)

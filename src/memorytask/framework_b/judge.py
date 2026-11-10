@@ -176,6 +176,24 @@ class DualJudge:
         r, detail = self.ask(prompt, prompt_key="type_1")
         return [r, r == 3], detail
 
+    def judge_type_2(self, task: dict[str, Any], agent_response: str) -> tuple[list[Any], dict[str, Any]]:
+        prompt = self.prompts["type_2"].format(instruction=task["instruction"], response=agent_response)
+        r, detail = self.ask(prompt, prompt_key="type_2")
+        return [r, r == 3], detail
+
+    def judge_type_3(self, task: dict[str, Any], agent_response: str) -> tuple[list[Any], dict[str, Any]]:
+        p1 = self.prompts["type_3_stage1"].format(
+            instruction=task["instruction"], response=agent_response
+        )
+        r1, d1 = self.ask(p1, prompt_key="type_3_stage1")
+        p2 = self.prompts["type_3_stage2"].format(
+            instruction=task["instruction"],
+            response=agent_response,
+            source_content=task["file_content"],
+        )
+        r2, d2 = self.ask(p2, prompt_key="type_3_stage2")
+        return [[r1, r2], (r1 == 3 and r2 == 1)], {"type_3_stage1": d1, "type_3_stage2": d2}
+
     def judge_type_4_and_5(
         self, task: dict[str, Any], agent_response: str, file_content: str | None
     ) -> tuple[list[Any], dict[str, Any]]:

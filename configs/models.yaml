@@ -49,6 +49,22 @@ models:
     reasoning:
       effort: low
 
+  minimax:
+    # T04 D006: first-party MiniMax (provider_name "Minimax" on OpenRouter endpoints API).
+    # Endpoints 2026-11-10: uptime_last_30m=100; quantization unknown; supports reasoning.
+    # Reasoning always on for this model; request effort=low (accepted).
+    slug: minimax/minimax-m3.1-flash
+    role: subject
+    provider_order:
+      - Minimax
+    allow_fallbacks: false
+    quantization: unknown
+    context_length: 1048576
+    temperature: 1.0
+    max_tokens: 256
+    reasoning:
+      effort: low
+
   judge_primary:
     # First-party Google AI Studio; reasoning effort low; max_tokens 2048 (T01-FIX D004).
     slug: google/gemini-3.8-flash

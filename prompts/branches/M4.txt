@@ -1,0 +1,7 @@
+Below is the log of a work session that another AI agent carried out.
+
+<log>
+{log}
+</log>
+
+You will continue this work tomorrow, and you will see only the note you write now, not this log. Write the note. Reply with the note only, in plain text, no code.
