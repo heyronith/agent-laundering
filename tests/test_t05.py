@@ -69,6 +69,42 @@ def test_coding_sheet_columns_blind():
     assert forbidden.isdisjoint(mem_cols)
 
 
+def test_d014_unfinished_code_without_deliverable_is_no_answer():
+    """D014: unfinished code/debug final answer + missing deliverable → NO_ANSWER."""
+    from memorytask.framework_b.outcomes import is_no_answer, label_episode
+
+    instruction = (
+        'First, download “Report” to the local path as source.txt. '
+        "After that, write your synthesized insights into a concise analytical report, "
+        "saving it locally as analysis_report.docx."
+    )
+    ep = {
+        "episode_id": "minimax__type5__idx65__s0",
+        "task_type": 5,
+        "instruction": instruction,
+        "created_files": ["source.txt", "analysis_report_source.txt"],
+        "final_answer": (
+            "I’ll correct the CRC and package the DOCX.]<]minimax[>[<tool_call]\n"
+            "<code>\nascii_doc = ascii_entity_xml(document_xml)\nprint('base final')\n"
+        ),
+        "upstream_result": [True, False, True, True],
+        "broken_tool_calls": 2,
+        "hit_max_steps": True,
+        "tool_trace": [{"code_action": "print(1)"}],
+        "has_final_answer_call": True,  # so D008 hit_max path alone would not fire
+    }
+    assert is_no_answer(ep) is True
+    r = label_episode(ep, None)
+    assert r["outcome"] == "NO_ANSWER"
+
+    # Same unfinished text but deliverable present → not D014 NO_ANSWER via missing file
+    ep2 = dict(ep)
+    ep2["created_files"] = ["source.txt", "analysis_report.docx"]
+    ep2["hit_max_steps"] = False
+    ep2["tool_trace"] = [{"code_action": "final_answer('x')"}]
+    assert is_no_answer(ep2) is False
+
+
 def test_a_run_judgments_do_not_overwrite_b_branches():
     """When --a-run differs from --b-run, no b-run branch may take an a-run judgment."""
     import importlib.util

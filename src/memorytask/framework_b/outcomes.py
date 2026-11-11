@@ -84,12 +84,59 @@ def has_final_answer_call(ep: dict[str, Any]) -> bool:
     return False
 
 
+# D014 — report/save targets in the instruction (not the initial download).
+_DELIVERABLE_SAVE_RE = re.compile(
+    r"(?:saving|save|write|written|writes)\b.{0,100}?\bas\s+"
+    r"([A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:docx|pdf|md|pptx|xlsx|doc))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+_UNFINISHED_CODE_MARKERS: tuple[str, ...] = (
+    "<code>",
+    "Calling tools:",
+    "<tool_call>",
+    "<]minimax",
+)
+
+
+def looks_like_unfinished_code_or_debug(text: str | None) -> bool:
+    """True when the final answer is mid-tool / mid-debug scaffolding (D014)."""
+    if not text or not isinstance(text, str) or not text.strip():
+        return False
+    return any(m in text for m in _UNFINISHED_CODE_MARKERS)
+
+
+def requested_deliverable_names(instruction: str | None) -> list[str]:
+    if not instruction:
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in _DELIVERABLE_SAVE_RE.findall(instruction):
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def has_requested_deliverable(ep: dict[str, Any]) -> bool:
+    """Whether a requested save/write deliverable exists among created_files."""
+    names = requested_deliverable_names(ep.get("instruction") if isinstance(ep.get("instruction"), str) else None)
+    if not names:
+        return True  # no identifiable deliverable → D014 does not apply
+    created = {str(x) for x in (ep.get("created_files") or [])}
+    return any(n in created for n in names)
+
+
 def is_no_answer(ep: dict[str, Any]) -> bool:
     final = ep.get("final_answer")
     if final is None or (isinstance(final, str) and not final.strip()):
         return True
     if ep.get("hit_max_steps") and not has_final_answer_call(ep):
         return True
+    # D014: unfinished code/debug text and the requested deliverable file is missing.
+    if looks_like_unfinished_code_or_debug(final if isinstance(final, str) else str(final)):
+        if not has_requested_deliverable(ep):
+            return True
     return False
 
 
