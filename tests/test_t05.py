@@ -67,3 +67,44 @@ def test_coding_sheet_columns_blind():
     forbidden = {"model", "outcome", "judge", "fork_model", "branch"}
     assert forbidden.isdisjoint(lapse_cols)
     assert forbidden.isdisjoint(mem_cols)
+
+
+def test_a_run_judgments_do_not_overwrite_b_branches():
+    """When --a-run differs from --b-run, no b-run branch may take an a-run judgment."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "analysis" / "t05_killtest.py"
+    spec = importlib.util.spec_from_file_location("t05_killtest_analysis", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    b_bid = "deepseek__type1__idx0__s0__deepseek__K__s0"
+    planted_bid = "planted__deepseek__response_0__s0__deepseek__K__s0"
+    b_judgments = [
+        {"branch_id": b_bid, "model_alias": "judge_primary", "label": "FROM_B"},
+        {"branch_id": b_bid, "model_alias": "judge_secondary", "label": "PARTIAL"},
+    ]
+    a_judgments = [
+        {"branch_id": b_bid, "model_alias": "judge_primary", "label": "FROM_A_OVERWRITE"},
+        {"branch_id": b_bid, "model_alias": "judge_secondary", "label": "FROM_A_OVERWRITE"},
+        {"branch_id": planted_bid, "model_alias": "judge_primary", "label": "FROM_A_PLANTED"},
+        {
+            "branch_id": "planted__deepseek__response_0__s0__report",
+            "model_alias": "judge_primary",
+            "label": "FAITHFUL",
+        },
+    ]
+    b_branch_ids = {b_bid}
+    merged = mod.merge_judgments(b_judgments, a_judgments, b_branch_ids, a_run_differs=True)
+    j_by = mod.index_judgments(merged)
+
+    assert j_by[b_bid]["judge_primary"]["label"] == "FROM_B"
+    assert j_by[b_bid]["judge_secondary"]["label"] == "PARTIAL"
+    assert j_by[planted_bid]["judge_primary"]["label"] == "FROM_A_PLANTED"
+    # No a-run judgment for a b-run branch_id may appear in the merge.
+    for j in merged:
+        if j.get("branch_id") in b_branch_ids:
+            assert j.get("label") != "FROM_A_OVERWRITE"
+            assert j in b_judgments

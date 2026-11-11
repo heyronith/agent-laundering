@@ -70,6 +70,34 @@ def fmt(x):
     return f"{100 * x:.1f}%"
 
 
+def merge_judgments(
+    b_judgments: list[dict],
+    a_judgments: list[dict],
+    b_branch_ids: set[str],
+    *,
+    a_run_differs: bool,
+) -> list[dict]:
+    """Combine B-run judgments with A-run judgments for the planted arm only.
+
+    When ``a_run_differs``, drop any a-run judgment whose ``branch_id`` is also a
+    b-run branch (same IDs would overwrite T05b labels with T05 B labels).
+    """
+    if not a_run_differs:
+        return list(b_judgments)
+    planted_only = [j for j in a_judgments if j.get("branch_id") not in b_branch_ids]
+    return list(b_judgments) + planted_only
+
+
+def index_judgments(judgments: list[dict]) -> dict[str, dict[str, dict]]:
+    j_by: dict[str, dict[str, dict]] = defaultdict(dict)
+    for j in judgments:
+        bid = j.get("branch_id")
+        alias = j.get("model_alias")
+        if bid and alias:
+            j_by[bid][alias] = j
+    return j_by
+
+
 def main() -> int:
     import argparse
 
@@ -90,21 +118,22 @@ def main() -> int:
         outcomes_path = run / "outcomes.jsonl"
     outcomes = {o["episode_id"]: o for o in read_jsonl(outcomes_path)}
     episodes = {e["episode_id"]: e for e in read_jsonl(run / "episodes.jsonl")}
-    branches = [b for b in read_jsonl(run / "branches.jsonl") if b.get("arm") != "planted"]
+    b_branches = [b for b in read_jsonl(run / "branches.jsonl") if b.get("arm") != "planted"]
     # A-planted from a_run (may equal b-run)
     a_branches = [b for b in read_jsonl(a_run / "branches.jsonl") if b.get("arm") == "planted"]
-    branches = branches + a_branches
-    judgments = read_jsonl(run / "branch_judgments.jsonl")
-    if a_run_id != run_id:
-        judgments = judgments + read_jsonl(a_run / "branch_judgments.jsonl")
+    branches = b_branches + a_branches
+    b_branch_ids = {b["branch_id"] for b in b_branches if b.get("branch_id")}
+    b_judgments = read_jsonl(run / "branch_judgments.jsonl")
+    a_judgments = read_jsonl(a_run / "branch_judgments.jsonl") if a_run_id != run_id else []
+    judgments = merge_judgments(
+        b_judgments,
+        a_judgments,
+        b_branch_ids,
+        a_run_differs=(a_run_id != run_id),
+    )
     planted = read_jsonl(a_run / "planted_episodes.jsonl")
 
-    j_by = defaultdict(dict)
-    for j in judgments:
-        bid = j.get("branch_id")
-        alias = j.get("model_alias")
-        if bid and alias:
-            j_by[bid][alias] = j
+    j_by = index_judgments(judgments)
 
     title = "T05b Kill Test" if run_id.startswith("t05b") else "T05 Kill Test"
     lines = [f"# {title}", ""]
@@ -238,6 +267,114 @@ def main() -> int:
                         "n": n,
                     }
     summary["memory"] = mem
+
+    # 3b) B only (exclude A-planted arm)
+    lines += ["", "### B only (exclude A-planted)", ""]
+    mem_b = {}
+    b_only = [b for b in branches if b.get("arm") != "planted"]
+    for alias in ("judge_primary", "judge_secondary", "agree"):
+        lines.append(f"#### Judge: {alias}")
+        lines.append("| branch | outcome | model | " + " | ".join(MEMORY_ORDER) + " | softened | softened-strict | n |")
+        lines.append("|---|---|---|" + "|".join(["---:"] * 8) + "|")
+        for bname in ("M1", "M3", "M4"):
+            for model in sorted({b.get("fork_model") for b in b_only}):
+                for outcome in sorted({ep_outcome.get(b["episode_id"]) for b in b_only}):
+                    if outcome is None or outcome == "LAPSE_PLANTED":
+                        continue
+                    ctr = Counter()
+                    n = 0
+                    for b in b_only:
+                        if b.get("branch") != bname or b.get("fork_model") != model:
+                            continue
+                        if ep_outcome.get(b["episode_id"]) != outcome:
+                            continue
+                        if alias == "agree":
+                            p = branch_label(b["branch_id"], "judge_primary")
+                            s = branch_label(b["branch_id"], "judge_secondary")
+                            if p != s or p not in MEMORY_ORDER:
+                                continue
+                            lab = p
+                        else:
+                            lab = branch_label(b["branch_id"], alias)
+                            if lab not in MEMORY_ORDER:
+                                continue
+                        ctr[lab] += 1
+                        n += 1
+                    if n == 0:
+                        continue
+                    soft = sum(ctr[x] for x in SOFTENED)
+                    soft_s = sum(ctr[x] for x in SOFTENED_STRICT)
+                    lines.append(
+                        f"| {bname} | {outcome} | {model} | "
+                        + " | ".join(str(ctr.get(x, 0)) for x in MEMORY_ORDER)
+                        + f" | {fmt(soft/n)} | {fmt(soft_s/n)} | {n} |"
+                    )
+                    mem_b[f"{alias}/{bname}/{outcome}/{model}"] = {
+                        "counts": dict(ctr),
+                        "softened": soft / n,
+                        "softened_strict": soft_s / n,
+                        "n": n,
+                    }
+    summary["memory_b_only"] = mem_b
+
+    # 3c) Lapse vs honest softened (B only)
+    lines += ["", "### Lapse vs honest softened (B only)", ""]
+    lines.append(
+        "| judge | branch | model | LAPSE softened | HONEST softened | "
+        "LAPSE softened-strict | HONEST softened-strict | n_lapse | n_honest |"
+    )
+    lines.append("|---|---|---|---:|---:|---:|---:|---:|---:|")
+    lapse_vs_honest = {}
+    lapse_outcomes = {"LAPSE_CANDIDATE", "LAPSE_VERIFIED"}
+    for alias in ("judge_primary", "judge_secondary", "agree"):
+        for bname in ("M1", "M3", "M4"):
+            for model in sorted({b.get("fork_model") for b in b_only}):
+                buckets = {
+                    "LAPSE": Counter(),
+                    "HONEST": Counter(),
+                }
+                for b in b_only:
+                    if b.get("branch") != bname or b.get("fork_model") != model:
+                        continue
+                    oc = ep_outcome.get(b["episode_id"])
+                    if oc in lapse_outcomes:
+                        bucket = "LAPSE"
+                    elif oc == "HONEST":
+                        bucket = "HONEST"
+                    else:
+                        continue
+                    if alias == "agree":
+                        p = branch_label(b["branch_id"], "judge_primary")
+                        s = branch_label(b["branch_id"], "judge_secondary")
+                        if p != s or p not in MEMORY_ORDER:
+                            continue
+                        lab = p
+                    else:
+                        lab = branch_label(b["branch_id"], alias)
+                        if lab not in MEMORY_ORDER:
+                            continue
+                    buckets[bucket][lab] += 1
+                n_l = sum(buckets["LAPSE"].values())
+                n_h = sum(buckets["HONEST"].values())
+                if n_l == 0 and n_h == 0:
+                    continue
+                soft_l = sum(buckets["LAPSE"][x] for x in SOFTENED) / n_l if n_l else None
+                soft_h = sum(buckets["HONEST"][x] for x in SOFTENED) / n_h if n_h else None
+                soft_ls = sum(buckets["LAPSE"][x] for x in SOFTENED_STRICT) / n_l if n_l else None
+                soft_hs = sum(buckets["HONEST"][x] for x in SOFTENED_STRICT) / n_h if n_h else None
+                lines.append(
+                    f"| {alias} | {bname} | {model} | {fmt(soft_l)} | {fmt(soft_h)} | "
+                    f"{fmt(soft_ls)} | {fmt(soft_hs)} | {n_l} | {n_h} |"
+                )
+                lapse_vs_honest[f"{alias}/{bname}/{model}"] = {
+                    "lapse_softened": soft_l,
+                    "honest_softened": soft_h,
+                    "lapse_softened_strict": soft_ls,
+                    "honest_softened_strict": soft_hs,
+                    "n_lapse": n_l,
+                    "n_honest": n_h,
+                }
+    summary["lapse_vs_honest_softened"] = lapse_vs_honest
 
     # 4) K-vs-M gap
     lines += ["", "## 4. K-vs-M gap (among K=RECOGNIZED)", ""]
