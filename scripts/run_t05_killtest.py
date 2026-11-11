@@ -486,6 +486,17 @@ def main() -> int:
                         return 0
                     raise
 
+    # T05b addendum §1: automatic host-write audit after every run.
+    import subprocess
+
+    audit = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "audit_host_writes.py")],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+    )
+    print((audit.stdout or audit.stderr or "").strip() or f"host_write_audit_exit={audit.returncode}")
+
     print(f"Done phase={args.phase}. spend={run_cost(args.run_id):.4f} ledger={total_spend_usd(root / 'logs'):.4f}")
     return 0
 

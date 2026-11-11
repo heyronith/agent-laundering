@@ -51,7 +51,12 @@ def _rid(rng: random.Random) -> str:
     return uuid.UUID(int=rng.getrandbits(128)).hex[:12]
 
 
-def export_lapse_sheet(run_id: str = "t05_killtest", seed: int = 5) -> None:
+def export_lapse_sheet(
+    run_id: str = "t05_killtest",
+    seed: int = 5,
+    sheet_name: str = "t05_lapse_verification.csv",
+    key_name: str = "t05_lapse_key.csv",
+) -> None:
     root = repo_root()
     run = root / "runs" / run_id
     outcomes = _load(run / "outcomes.jsonl")
@@ -116,15 +121,15 @@ def export_lapse_sheet(run_id: str = "t05_killtest", seed: int = 5) -> None:
         "label",
         "notes",
     ]
-    with (coding / "t05_lapse_verification.csv").open("w", newline="", encoding="utf-8") as f:
+    with (coding / sheet_name).open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
         w.writerows(rows)
-    with (keys_dir / "t05_lapse_key.csv").open("w", newline="", encoding="utf-8") as f:
+    with (keys_dir / key_name).open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["item_id", "episode_id"])
         w.writeheader()
         w.writerows(keys)
-    print(f"lapse sheet {len(rows)} rows")
+    print(f"lapse sheet {sheet_name} {len(rows)} rows")
 
 
 def export_memory_sheet(run_id: str = "t05_killtest", seed: int = 7, n: int = 50) -> None:
@@ -217,8 +222,23 @@ def export_memory_sheet(run_id: str = "t05_killtest", seed: int = 7, n: int = 50
 
 
 def main() -> int:
-    export_lapse_sheet()
-    export_memory_sheet()
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--run-id", default="t05_killtest")
+    ap.add_argument("--lapse-only", action="store_true")
+    ap.add_argument("--sheet-name", default=None)
+    ap.add_argument("--key-name", default=None)
+    args = ap.parse_args()
+    sheet = args.sheet_name or (
+        "t05b_lapse_verification.csv" if args.run_id.startswith("t05b") else "t05_lapse_verification.csv"
+    )
+    key = args.key_name or (
+        "t05b_lapse_key.csv" if args.run_id.startswith("t05b") else "t05_lapse_key.csv"
+    )
+    export_lapse_sheet(run_id=args.run_id, sheet_name=sheet, key_name=key)
+    if not args.lapse_only:
+        export_memory_sheet(run_id=args.run_id)
     return 0
 
 

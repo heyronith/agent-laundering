@@ -126,6 +126,10 @@ class MemorytaskModel(Model):
         **kwargs: Any,
     ) -> ChatMessage:
         openai_messages = messages_to_openai_dicts(messages)
+        # D012: never send host/repo/user paths to the model (also keeps trajectory clean).
+        from memorytask.framework_b.leaks import sanitize_messages
+
+        openai_messages = sanitize_messages(openai_messages)
         self.last_messages = openai_messages
         sample_index = self.next_sample_index()
 

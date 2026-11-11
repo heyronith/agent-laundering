@@ -71,17 +71,33 @@ def fmt(x):
 
 
 def main() -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--b-run", default="t05_killtest", help="B episodes/outcomes/branches run_id")
+    ap.add_argument("--a-run", default=None, help="A-planted run_id (default: same as --b-run)")
+    ap.add_argument("--out-prefix", default=None, help="report stem, default from --b-run")
+    args = ap.parse_args()
+
     root = repo_root()
-    run_id = "t05_killtest"
+    run_id = args.b_run
+    a_run_id = args.a_run or run_id
+    out_prefix = args.out_prefix or ("T05b_killtest" if run_id.startswith("t05b") else "T05_killtest")
     run = root / "runs" / run_id
+    a_run = root / "runs" / a_run_id
     outcomes_path = run / "outcomes_verified.jsonl"
     if not outcomes_path.exists():
         outcomes_path = run / "outcomes.jsonl"
     outcomes = {o["episode_id"]: o for o in read_jsonl(outcomes_path)}
     episodes = {e["episode_id"]: e for e in read_jsonl(run / "episodes.jsonl")}
-    branches = read_jsonl(run / "branches.jsonl")
+    branches = [b for b in read_jsonl(run / "branches.jsonl") if b.get("arm") != "planted"]
+    # A-planted from a_run (may equal b-run)
+    a_branches = [b for b in read_jsonl(a_run / "branches.jsonl") if b.get("arm") == "planted"]
+    branches = branches + a_branches
     judgments = read_jsonl(run / "branch_judgments.jsonl")
-    planted = read_jsonl(run / "planted_episodes.jsonl")
+    if a_run_id != run_id:
+        judgments = judgments + read_jsonl(a_run / "branch_judgments.jsonl")
+    planted = read_jsonl(a_run / "planted_episodes.jsonl")
 
     j_by = defaultdict(dict)
     for j in judgments:
@@ -90,8 +106,14 @@ def main() -> int:
         if bid and alias:
             j_by[bid][alias] = j
 
-    lines = ["# T05 Kill Test", ""]
-    summary: dict = {"run_id": run_id, "n_episodes": len(episodes), "n_outcomes": len(outcomes)}
+    title = "T05b Kill Test" if run_id.startswith("t05b") else "T05 Kill Test"
+    lines = [f"# {title}", ""]
+    summary: dict = {
+        "run_id": run_id,
+        "a_run_id": a_run_id,
+        "n_episodes": len(episodes),
+        "n_outcomes": len(outcomes),
+    }
 
     # 1) per model × type
     lines += ["## 1. Per model × type outcomes", ""]
@@ -440,11 +462,47 @@ def main() -> int:
         lines.append(f"| {model} | {d['n']} | {d['length']} | {fmt(rate)}{flag} |")
     summary["finish_reason_length"] = length_sum
 
+    # T05 vs T05b outcome comparison (when analyzing t05b with t05 A)
+    if run_id.startswith("t05b"):
+        t05_out = {
+            o["episode_id"]: o
+            for o in read_jsonl(root / "runs" / "t05_killtest" / "outcomes.jsonl")
+        }
+        lines += ["", "## T05 vs T05b B outcome counts (descriptive)", ""]
+        lines.append(
+            "| model | type | T05_CAND | T05_UNCONF | T05_HONEST | T05_NOANS | T05b_CAND | T05b_UNCONF | T05b_HONEST | T05b_NOANS |"
+        )
+        lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+        cmp: dict = {}
+        keys = sorted({(o["model"], int(o["task_type"])) for o in outcomes.values()} |
+                      {(o["model"], int(o["task_type"])) for o in t05_out.values()})
+        for model, ttype in keys:
+            def counts(src, m, t):
+                rows = [o for o in src.values() if o.get("model") == m and int(o.get("task_type")) == t]
+                c = Counter(o["outcome"] for o in rows)
+                return c
+            a = counts(t05_out, model, ttype)
+            b = counts(outcomes, model, ttype)
+            lines.append(
+                f"| {model} | {ttype} | {a.get('LAPSE_CANDIDATE',0)+a.get('LAPSE_VERIFIED',0)} | "
+                f"{a.get('LAPSE_UNCONFIRMED',0)} | {a.get('HONEST',0)} | {a.get('NO_ANSWER',0)} | "
+                f"{b.get('LAPSE_CANDIDATE',0)+b.get('LAPSE_VERIFIED',0)} | {b.get('LAPSE_UNCONFIRMED',0)} | "
+                f"{b.get('HONEST',0)} | {b.get('NO_ANSWER',0)} |"
+            )
+            cmp[f"{model}/type_{ttype}"] = {"t05": dict(a), "t05b": dict(b)}
+        summary["t05_vs_t05b"] = cmp
+
     reports = root / "reports"
     reports.mkdir(parents=True, exist_ok=True)
-    (reports / "T05_killtest.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (reports / "T05_summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
-    print(f"Wrote reports/T05_killtest.md and T05_summary.json (episodes={len(episodes)})")
+    md_name = f"{out_prefix}.md"
+    js_name = f"{out_prefix.replace('killtest','summary')}.json" if "killtest" in out_prefix else f"{out_prefix}_summary.json"
+    if out_prefix == "T05b_killtest":
+        js_name = "T05b_summary.json"
+    elif out_prefix == "T05_killtest":
+        js_name = "T05_summary.json"
+    (reports / md_name).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (reports / js_name).write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    print(f"Wrote reports/{md_name} and {js_name} (episodes={len(episodes)})")
     return 0
 
 

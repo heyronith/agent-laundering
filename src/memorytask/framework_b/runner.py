@@ -7,6 +7,7 @@ import json
 import os
 import random
 import re
+import secrets
 import shutil
 import string
 import sys
@@ -100,6 +101,78 @@ def pushd(path: str | Path) -> Iterator[None]:
         os.chdir(old)
 
 
+_PATH_ARG_KEYS = (
+    "dir_path",
+    "file_path",
+    "path_or_url",
+    "source",
+    "audio_file_path",
+)
+
+
+def _is_http_url(value: str) -> bool:
+    v = value.strip().lower()
+    return v.startswith("http://") or v.startswith("https://")
+
+
+def _path_outside_workspace(raw: str, workspace: Path) -> bool:
+    """True if raw is a local path that escapes workspace (URLs are allowed)."""
+    if _is_http_url(raw):
+        return False
+    ws = workspace.resolve()
+    p = Path(raw)
+    if not p.is_absolute():
+        p = (ws / p).resolve()
+    else:
+        p = p.resolve()
+    try:
+        p.relative_to(ws)
+        return False
+    except ValueError:
+        return True
+
+
+def jail_tools(tools: list[Any], workspace: Path) -> list[Any]:
+    """Wrap tools so returned observations redact host/repo paths (D012).
+
+    Tools still execute unchanged (including out-of-workspace paths); only the
+    agent-visible return string is sanitized. Blocking would change protocol.
+    ``workspace`` is retained for call-site clarity / future auditors.
+    """
+    del workspace  # execution is not cwd-jailed; path redaction is the jail
+    from memorytask.framework_b.leaks import sanitize_agent_visible_text
+
+    for tool in tools:
+        if not hasattr(tool, "forward"):
+            continue
+        orig = tool.forward
+
+        def _make_wrapped(original):
+            def wrapped(*args, **kwargs):
+                result = original(*args, **kwargs)
+                if isinstance(result, str):
+                    return sanitize_agent_visible_text(result)
+                return result
+
+            return wrapped
+
+        tool.forward = _make_wrapped(orig)
+    return tools
+
+
+def make_neutral_workspace() -> Path:
+    """Fresh agent cwd under /tmp/ws/<10-hex>/ (D012). Outside the repo; no episode/run ids."""
+    root = Path("/tmp/ws")
+    root.mkdir(parents=True, exist_ok=True)
+    while True:
+        ws = root / secrets.token_hex(5)  # 10 hex chars
+        try:
+            ws.mkdir(mode=0o700)
+            return ws
+        except FileExistsError:
+            continue
+
+
 def is_semantically_empty_file(path: str, sample_bytes: int = 131072) -> bool:
     """Copied semantics from vendor evaluation.is_semantically_empty_file (utf-8/latin-1)."""
     import codecs
@@ -186,6 +259,35 @@ def _serialize_memory_steps(agent: CodeAgent) -> list[dict[str, Any]]:
         else:
             steps.append({"repr": repr(step)})
     return steps
+
+
+def _sanitize_memory_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Redact host/repo paths from serialized memory (model_input_messages, observations)."""
+    from memorytask.framework_b.leaks import sanitize_agent_visible_text, sanitize_messages
+
+    out: list[dict[str, Any]] = []
+    for step in steps:
+        s = dict(step)
+        mim = s.get("model_input_messages")
+        if isinstance(mim, list):
+            # May be ChatMessage-like dicts with role enum already stringified by .dict()
+            norm: list[dict[str, Any]] = []
+            for msg in mim:
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get("role")
+                if hasattr(role, "value"):
+                    role = role.value
+                role_s = str(role).lower().replace("messagerole.", "")
+                m2 = dict(msg)
+                m2["role"] = role_s
+                norm.append(m2)
+            s["model_input_messages"] = sanitize_messages(norm)
+        for key in ("observations", "action_output", "error"):
+            if isinstance(s.get(key), str):
+                s[key] = sanitize_agent_visible_text(s[key])
+        out.append(s)
+    return out
 
 
 def _last_model_input_messages(agent: CodeAgent) -> list[dict[str, Any]] | None:
@@ -276,10 +378,8 @@ def run_episode(
     root = repo_root()
     run_dir = root / "runs" / run_id
     ep_dir = run_dir / "episodes" / episode_id
-    workdir = run_dir / "workdirs" / episode_id
-    if workdir.exists():
-        shutil.rmtree(workdir)
-    workdir.mkdir(parents=True, exist_ok=True)
+    # D012: agent cwd is a neutral /tmp/ws/<hex>/ folder (not under the repo).
+    workdir = make_neutral_workspace()
     ep_dir.mkdir(parents=True, exist_ok=True)
 
     model_kwargs: dict[str, Any] = dict(
@@ -304,6 +404,7 @@ def run_episode(
         tools = get_custom_tools([])
     else:
         tools = get_custom_tools(["read_txt"])
+    tools = jail_tools(tools, workdir)
     agent = CodeAgent(
         tools=tools,
         model=model,
@@ -320,22 +421,24 @@ def run_episode(
     final_answer = ""
     agent_log = ""
 
+    file_content: str | None = None
+    created_files: list[str] = []
     try:
         with pushd(workdir):
             if task_type == 1:
-                # Write random-content file under the task's file name inside workdir
+                # Basename only — never pass absolute repo paths to the agent (D012).
                 Path(task["file_name"]).parent.mkdir(parents=True, exist_ok=True)
                 Path(task["file_name"]).write_text(generate_random_content(), encoding="utf-8")
-                attached = str(Path(task["file_name"]).resolve())
+                attached = task["file_name"]
             elif task_type == 2:
                 Path(task["file_name"]).parent.mkdir(parents=True, exist_ok=True)
                 Path(task["file_name"]).write_text(task["file_content"], encoding="utf-8")
-                attached = str(Path(task["file_name"]).resolve())
+                attached = task["file_name"]
             elif task_type == 3:
                 Path(task["txt_file_name"]).parent.mkdir(parents=True, exist_ok=True)
                 Path(task["txt_file_name"]).write_text(task["file_content"], encoding="utf-8")
                 create_dummy_pptx(task["pptx_file_name"], num_slides=2)
-                attached = str(Path(task["pptx_file_name"]).resolve())
+                attached = task["pptx_file_name"]
 
             buf = io.StringIO()
             with redirect_stdout(buf), redirect_stderr(buf):
@@ -348,7 +451,6 @@ def run_episode(
             final_answer = result if isinstance(result, str) else str(result)
 
             # Types 4/5: inspect target file after run (cwd = workdir)
-            file_content: str | None = None
             if task_type in (4, 5):
                 target_file_name = task.get("target_file_name")
                 if target_file_name:
@@ -368,6 +470,20 @@ def run_episode(
         file_content = None
         if not agent_log:
             agent_log = ""
+    finally:
+        # Copy agent outputs into the repo episode dir, then drop the neutral workspace.
+        try:
+            if workdir.exists():
+                created_files = _copy_workdir_files(
+                    workdir, ep_dir / "workdir_files", skip_names={"agent_stdout.log", "trajectory.json"}
+                )
+        except Exception:
+            created_files = []
+        try:
+            if workdir.exists() and str(workdir).startswith("/tmp/ws/"):
+                shutil.rmtree(workdir, ignore_errors=True)
+        except Exception:
+            pass
 
     # Memory / trajectory
     try:
@@ -407,7 +523,14 @@ def run_episode(
     broken_tool_calls = count_broken_tool_calls(observations)
     tool_trace = _collect_tool_trace(agent)
 
-    # Persist agent artifacts
+    # Persist agent artifacts (D012: sanitize any residual host/repo paths in stored inputs).
+    from memorytask.framework_b.leaks import sanitize_agent_visible_text, sanitize_messages
+
+    if last_messages is not None:
+        last_messages = sanitize_messages(last_messages)
+    memory_steps = _sanitize_memory_steps(memory_steps)
+    agent_log = sanitize_agent_visible_text(agent_log or "")
+
     (ep_dir / "agent_stdout.log").write_text(agent_log, encoding="utf-8")
     (ep_dir / "final_answer.txt").write_text(final_answer or "", encoding="utf-8")
     trajectory = {
@@ -424,9 +547,7 @@ def run_episode(
         json.dumps(trajectory, ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
     )
-    created_files = _copy_workdir_files(
-        workdir, ep_dir / "workdir_files", skip_names={"agent_stdout.log", "trajectory.json"}
-    )
+    # created_files already copied in finally from /tmp/ws
 
     # Judges
     judge_details: dict[str, Any] = {}
