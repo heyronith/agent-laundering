@@ -1,0 +1,196 @@
+{
+  "by_slug": {
+    "anthropic/claude-opus-4.6": {
+      "allow_fallbacks": false,
+      "context_length": 1000000,
+      "input_per_million": 5.0,
+      "output_per_million": 25.0,
+      "pinned_provider": "Anthropic",
+      "quantization": "unknown",
+      "slug": "anthropic/claude-opus-4.6"
+    },
+    "anthropic/claude-sonnet-5.5": {
+      "allow_fallbacks": false,
+      "context_length": 1000000,
+      "input_per_million": 2.0,
+      "output_per_million": 10.0,
+      "pinned_provider": "Anthropic",
+      "quantization": "unknown",
+      "slug": "anthropic/claude-sonnet-5.5"
+    },
+    "deepseek/deepseek-v4.1-flash-1017": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.3,
+      "output_per_million": 1.2,
+      "pinned_provider": "Nebius",
+      "quantization": "fp8",
+      "slug": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    "google/gemini-3.1-pro-preview": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 1.0,
+      "output_per_million": 6.0,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.1-pro-preview"
+    },
+    "google/gemini-3.8-flash": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.375,
+      "output_per_million": 1.875,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.8-flash"
+    },
+    "minimax/minimax-m3.1-flash": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.15,
+      "output_per_million": 0.6,
+      "pinned_provider": "Minimax",
+      "quantization": "unknown",
+      "slug": "minimax/minimax-m3.1-flash"
+    },
+    "openai/gpt-6-luna": {
+      "allow_fallbacks": false,
+      "context_length": 1050000,
+      "input_per_million": 0.049999999999999996,
+      "output_per_million": 0.25,
+      "pinned_provider": "OpenAI",
+      "quantization": "unknown",
+      "slug": "openai/gpt-6-luna"
+    },
+    "openai/gpt-oss-120b": {
+      "allow_fallbacks": false,
+      "context_length": 131072,
+      "input_per_million": 0.03,
+      "output_per_million": 0.16999999999999998,
+      "pinned_provider": "CoreWeave",
+      "quantization": "fp4",
+      "slug": "openai/gpt-oss-120b"
+    },
+    "z-ai/glm-5.3-flash": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.15,
+      "output_per_million": 0.5,
+      "pinned_provider": "Z.AI",
+      "quantization": "fp8",
+      "slug": "z-ai/glm-5.3-flash"
+    }
+  },
+  "fetched_utc": "2026-11-12T02:18:45.541770+00:00",
+  "models": {
+    "deepseek": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.3,
+      "output_per_million": 1.2,
+      "pinned_provider": "Nebius",
+      "quantization": "fp8",
+      "slug": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    "e1_editor": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 1.0,
+      "output_per_million": 6.0,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.1-pro-preview"
+    },
+    "glm": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.15,
+      "output_per_million": 0.5,
+      "pinned_provider": "Z.AI",
+      "quantization": "fp8",
+      "slug": "z-ai/glm-5.3-flash"
+    },
+    "jb_gem31pro": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 1.0,
+      "output_per_million": 6.0,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.1-pro-preview"
+    },
+    "jb_gem38flash": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.375,
+      "output_per_million": 1.875,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.8-flash"
+    },
+    "jb_opus46": {
+      "allow_fallbacks": false,
+      "context_length": 1000000,
+      "input_per_million": 5.0,
+      "output_per_million": 25.0,
+      "pinned_provider": "Anthropic",
+      "quantization": "unknown",
+      "slug": "anthropic/claude-opus-4.6"
+    },
+    "jb_oss120b": {
+      "allow_fallbacks": false,
+      "context_length": 131072,
+      "input_per_million": 0.03,
+      "output_per_million": 0.16999999999999998,
+      "pinned_provider": "CoreWeave",
+      "quantization": "fp4",
+      "slug": "openai/gpt-oss-120b"
+    },
+    "judge_oss": {
+      "allow_fallbacks": false,
+      "context_length": 131072,
+      "input_per_million": 0.03,
+      "output_per_million": 0.16999999999999998,
+      "pinned_provider": "CoreWeave",
+      "quantization": "fp4",
+      "slug": "openai/gpt-oss-120b"
+    },
+    "judge_primary": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.375,
+      "output_per_million": 1.875,
+      "pinned_provider": "Google AI Studio",
+      "quantization": "unknown",
+      "slug": "google/gemini-3.8-flash"
+    },
+    "judge_secondary": {
+      "allow_fallbacks": false,
+      "context_length": 1000000,
+      "input_per_million": 2.0,
+      "output_per_million": 10.0,
+      "pinned_provider": "Anthropic",
+      "quantization": "unknown",
+      "slug": "anthropic/claude-sonnet-5.5"
+    },
+    "luna": {
+      "allow_fallbacks": false,
+      "context_length": 1050000,
+      "input_per_million": 0.049999999999999996,
+      "output_per_million": 0.25,
+      "pinned_provider": "OpenAI",
+      "quantization": "unknown",
+      "slug": "openai/gpt-6-luna"
+    },
+    "minimax": {
+      "allow_fallbacks": false,
+      "context_length": 1048576,
+      "input_per_million": 0.15,
+      "output_per_million": 0.6,
+      "pinned_provider": "Minimax",
+      "quantization": "unknown",
+      "slug": "minimax/minimax-m3.1-flash"
+    }
+  }
+}

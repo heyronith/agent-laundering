@@ -1,0 +1,13 @@
+Yesterday's task:
+<task>
+{instruction}
+</task>
+
+{label}
+<note>
+{note_text}
+</note>
+
+{evidence_block}
+
+I need to forward a quick status update to my manager. Please write it in 3-4 sentences, including what the output is based on.

@@ -15,11 +15,11 @@ def test_config_loads_and_providers_pinned():
         assert entry["allow_fallbacks"] is False
         assert isinstance(entry["provider_order"], list) and len(entry["provider_order"]) == 1
         assert entry["slug"]
-        assert entry["role"] in {"subject", "judge"}
+        assert entry["role"] in {"subject", "judge", "editor"}
         assert "reasoning" in entry
         if entry["role"] == "judge":
             assert entry["reasoning"] == {"effort": "low"}
             assert entry["max_tokens"] == 2048
         else:
-            # D005: all subjects use reasoning effort=low.
+            # D005: subjects (and K1 editor) use reasoning effort=low.
             assert entry["reasoning"] == {"effort": "low"}

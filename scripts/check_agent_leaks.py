@@ -85,14 +85,24 @@ def _context(text: str, term: str, width: int = 40) -> str:
     return text[a:b]
 
 
-def collect_raw_inputs(run_id: str) -> list[dict[str, Any]]:
+def collect_raw_inputs(
+    run_id: str,
+    *,
+    call_roles: tuple[str, ...] | None = ("subject", "fork"),
+    message_roles: tuple[str, ...] | None = ("user", "system"),
+    all_message_roles: bool = False,
+) -> list[dict[str, Any]]:
+    """Collect raw request message texts for leak scanning.
+
+    K1: pass all_message_roles=True to scan every message role in the request.
+    """
     discarded = _load_discarded(run_id)
     task_cache: dict[int, dict[int, dict[str, Any]]] = {}
     items: list[dict[str, Any]] = []
     for r in iter_run_logs(repo_root() / "logs"):
         if r.get("run_id") != run_id:
             continue
-        if r.get("role") not in ("subject", "fork"):
+        if call_roles is not None and r.get("role") not in call_roles:
             continue
         cid = r.get("call_id")
         if cid in discarded:
@@ -101,11 +111,13 @@ def collect_raw_inputs(run_id: str) -> list[dict[str, Any]]:
         wl = _whitelist_for(eid, task_cache)
         msgs = (r.get("request") or {}).get("messages") or []
         for i, msg in enumerate(msgs):
-            if msg.get("role") not in ("user", "system"):
-                continue
+            role = msg.get("role")
+            if not all_message_roles:
+                if message_roles is not None and role not in message_roles:
+                    continue
             items.append(
                 {
-                    "source": f"log:{cid}:{i}:{msg.get('role')}",
+                    "source": f"log:{cid}:{i}:{role}",
                     "call_id": cid,
                     "episode_id": eid,
                     "role_call": r.get("role"),
@@ -116,8 +128,15 @@ def collect_raw_inputs(run_id: str) -> list[dict[str, Any]]:
     return items
 
 
-def scan_run(run_id: str) -> dict[str, Any]:
-    items = collect_raw_inputs(run_id)
+def scan_run(
+    run_id: str,
+    *,
+    call_roles: tuple[str, ...] | None = ("subject", "fork"),
+    all_message_roles: bool = False,
+) -> dict[str, Any]:
+    items = collect_raw_inputs(
+        run_id, call_roles=call_roles, all_message_roles=all_message_roles
+    )
     forbidden_rows: list[dict[str, Any]] = []
     whitelist_rows: list[dict[str, Any]] = []
     exempted_rows: list[dict[str, Any]] = []
@@ -162,9 +181,16 @@ def scan_run(run_id: str) -> dict[str, Any]:
     per_ep_summary = {
         eid: dict(Counter(terms)) for eid, terms in sorted(per_episode.items())
     }
+    scan_target = "raw request.messages in logs/*.jsonl"
+    if call_roles is None:
+        scan_target += " (all call roles"
+    else:
+        scan_target += f" ({'+'.join(call_roles)}"
+    scan_target += "; all message roles" if all_message_roles else "; user+system only"
+    scan_target += "; discarded excluded)"
     return {
         "run_id": run_id,
-        "scan_target": "raw request.messages in logs/*.jsonl (subject+fork; discarded excluded)",
+        "scan_target": scan_target,
         "leak_terms": list(LEAK_TERMS),
         "n_inputs_scanned": len(items),
         "n_forbidden": len(forbidden_rows),
@@ -175,6 +201,7 @@ def scan_run(run_id: str) -> dict[str, Any]:
         "whitelist_hits": whitelist_rows,
         "exempted_by_narrowing": exempted_rows,
         "ok": len(forbidden_rows) == 0,
+        "all_message_roles": all_message_roles,
     }
 
 
@@ -182,8 +209,29 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--json-out", default=None)
+    ap.add_argument(
+        "--all-roles",
+        action="store_true",
+        help="Scan all message roles in raw request.messages (not only user+system)",
+    )
+    ap.add_argument(
+        "--call-roles",
+        default=None,
+        help="Comma-separated call roles to include (default: subject,fork). "
+        "Use 'ALL' for every call role.",
+    )
     args = ap.parse_args()
-    result = scan_run(args.run_id)
+    if args.call_roles == "ALL":
+        call_roles = None
+    elif args.call_roles:
+        call_roles = tuple(x.strip() for x in args.call_roles.split(",") if x.strip())
+    else:
+        call_roles = ("subject", "fork")
+    result = scan_run(
+        args.run_id,
+        call_roles=call_roles,
+        all_message_roles=bool(args.all_roles),
+    )
     print(f"run_id={result['run_id']}")
     print(f"scan_target={result['scan_target']}")
     print(f"inputs_scanned={result['n_inputs_scanned']}")

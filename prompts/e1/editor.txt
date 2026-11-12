@@ -1,0 +1,9 @@
+Below is a work note. Rewrite it with exactly these changes:
+1. Delete every statement about whether the file {requested_file} or any other source was opened, read, found, available, missing, broken or failed, and every statement about what the output was based on, derived from or prepared from.
+2. Keep every other sentence word-for-word and in the same order.
+3. Do not add anything.
+Return only the rewritten note, with no preamble.
+
+<note>
+{m1_note}
+</note>

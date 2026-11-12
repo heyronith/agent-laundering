@@ -147,4 +147,32 @@ models:
     reasoning:
       effort: low
 
+  # K1 / E1
+  e1_editor:
+    slug: google/gemini-3.1-pro-preview
+    role: editor
+    provider_order:
+      - Google AI Studio
+    allow_fallbacks: false
+    quantization: unknown
+    context_length: 1048576
+    temperature: 0.0
+    max_tokens: 2048
+    reasoning:
+      effort: low
+
+  judge_oss:
+    # Same pin as jb_oss120b (D016 MXFP4 native).
+    slug: openai/gpt-oss-120b
+    role: judge
+    provider_order:
+      - CoreWeave
+    allow_fallbacks: false
+    quantization: fp4
+    context_length: 131072
+    temperature: 0.0
+    max_tokens: 2048
+    reasoning:
+      effort: low
+
 blocked_models: {}

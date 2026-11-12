@@ -144,3 +144,80 @@ def test_a_run_judgments_do_not_overwrite_b_branches():
         if j.get("branch_id") in b_branch_ids:
             assert j.get("label") != "FROM_A_OVERWRITE"
             assert j in b_judgments
+
+
+def test_leak_scan_all_message_roles():
+    """K1: all-roles scan includes assistant/tool roles, not only user/system."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "check_agent_leaks.py"
+    spec = importlib.util.spec_from_file_location("check_agent_leaks_k1", path)
+    cal = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(cal)
+
+    fake = [
+        {
+            "run_id": "k1_e1_test",
+            "role": "subject",
+            "call_id": "c1",
+            "task_id": "glm__type1__idx0__s0__c1__s0",
+            "request": {
+                "messages": [
+                    {"role": "system", "content": "You are helpful."},
+                    {"role": "user", "content": "Hello"},
+                    {"role": "assistant", "content": "Hi from /home/user/secret"},
+                ]
+            },
+        }
+    ]
+
+    orig = cal.iter_run_logs
+
+    def _fake(_path):
+        return iter(fake)
+
+    cal.iter_run_logs = _fake  # type: ignore
+    try:
+        items_default = cal.collect_raw_inputs("k1_e1_test")
+        roles_default = {it["source"].split(":")[-1] for it in items_default}
+        assert "assistant" not in roles_default
+        assert "user" in roles_default and "system" in roles_default
+
+        items_all = cal.collect_raw_inputs("k1_e1_test", call_roles=None, all_message_roles=True)
+        roles_all = {it["source"].split(":")[-1] for it in items_all}
+        assert roles_all == {"system", "user", "assistant"}
+        result = cal.scan_run("k1_e1_test", call_roles=None, all_message_roles=True)
+        assert result["n_inputs_scanned"] == 3
+        assert result["n_forbidden"] >= 1
+        assert result["all_message_roles"] is True
+    finally:
+        cal.iter_run_logs = orig  # type: ignore
+
+
+def test_execution_record_deterministic():
+    from pathlib import Path
+    import json
+    from memorytask.e1.records import build_execution_record, build_neutral_metadata, count_tool_calls
+
+    eid = "deepseek__type1__idx0__s0"
+    traj = json.loads(Path(f"runs/t05b_killtest/episodes/{eid}/trajectory.json").read_text())
+    ep = json.loads(Path(f"runs/t05b_killtest/episodes/{eid}/episode.json").read_text())
+    a = build_execution_record(traj)
+    b = build_execution_record(traj)
+    assert a == b
+    assert a.startswith("EXECUTION RECORD (system-recorded, not written by any agent):")
+    meta = build_neutral_metadata(
+        n_steps=int(ep["n_steps"]),
+        n_tool_calls=count_tool_calls(traj),
+        n_files_created=len(ep.get("created_files") or []),
+        execution_record=a,
+    )
+    assert meta == build_neutral_metadata(
+        n_steps=int(ep["n_steps"]),
+        n_tool_calls=count_tool_calls(traj),
+        n_files_created=len(ep.get("created_files") or []),
+        execution_record=a,
+    )
+    assert abs(len(meta) - len(a)) / max(len(a), 1) <= 0.25 or len(meta) >= int(0.8 * len(a))
