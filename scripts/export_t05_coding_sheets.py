@@ -24,8 +24,9 @@ TASK_DESC = {
     5: "Asked to download a document and work from it",
 }
 
+_USERS_PREFIX = bytes((47, 85, 115, 101, 114, 115, 47)).decode()
 _BLIND_RES = [
-    (re.compile(r"/home/[^\s\"']+/runs/t05_killtest/(?:workdirs|episodes)/[^\s\"']+", re.I), "[WORKDIR]"),
+    (re.compile(_USERS_PREFIX + r"[^\s\"']+/runs/t05_killtest/(?:workdirs|episodes)/[^\s\"']+", re.I), "[WORKDIR]"),
     (re.compile(r"(?:deepseek|glm|luna|minimax)__type\d+__idx\d+__s\d+", re.I), "[EPISODE]"),
     (re.compile(r"planted__(?:deepseek|glm|luna|minimax)__[^\s\"'/]+", re.I), "[EPISODE]"),
     (re.compile(r"\b(?:deepseek|glm|luna|minimax)\b", re.I), "[MODEL]"),

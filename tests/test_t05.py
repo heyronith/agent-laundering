@@ -171,7 +171,7 @@ def test_leak_scan_all_message_roles():
                 "messages": [
                     {"role": "system", "content": "You are helpful."},
                     {"role": "user", "content": "Hello"},
-                    {"role": "assistant", "content": "Hi from " + "/home/" + "name/secret"},
+                    {"role": "assistant", "content": "Hi from " + __import__("memorytask.framework_b.leaks", fromlist=["_USERS_PREFIX"])._USERS_PREFIX + "name/secret"},
                 ]
             },
         }

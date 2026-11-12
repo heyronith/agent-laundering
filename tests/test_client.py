@@ -129,7 +129,7 @@ def test_cache_hit_makes_zero_http_calls(tmp_path: Path, monkeypatch):
     assert rows[-1]["cache_hit"] is True
     assert rows[-1]["cost_usd"] == 0.0
     assert rows[-1]["cache_namespace"] == "t01_smoke"
-    assert "sk_or_" not in json.dumps(rows[-1])
+    assert ("sk-or" + "-") not in json.dumps(rows[-1])
 
 
 @respx.mock

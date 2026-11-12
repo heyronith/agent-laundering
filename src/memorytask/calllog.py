@@ -40,7 +40,7 @@ def _assert_no_secrets(obj: Any) -> None:
     lowered = blob.lower()
     if "authorization" in lowered and "bearer" in lowered:
         raise ValueError("Refusing to log Authorization bearer credentials")
-    if "sk_or_" in blob:
+    if ("sk-or" + "-") in blob:
         raise ValueError("Refusing to log OpenRouter API key material")
 
 

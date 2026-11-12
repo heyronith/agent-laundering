@@ -17,7 +17,7 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
-export OPENROUTER_API_KEY_SET...   # required only for live model calls
+# set OPENROUTER_API_KEY in the environment (required only for live model calls)
 make test
 ```
 

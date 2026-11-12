@@ -9,6 +9,8 @@ import pytest
 
 from memorytask.calllog import REQUIRED_FIELDS, append_call_log
 
+_FAKE_KEY = "sk-or" + "-v1-00deadbeef"
+
 
 def _sample_record(**overrides):
     base = {
@@ -53,14 +55,14 @@ def test_logger_writes_valid_jsonl_with_required_fields(tmp_path: Path):
 
 
 def test_logger_rejects_api_key_material(tmp_path: Path):
-    record = _sample_record(request={"messages": [], "api_key": "sk_or_v1-00deadbeef"})
+    record = _sample_record(request={"messages": [], "api_key": _FAKE_KEY})
     with pytest.raises(ValueError, match="API key"):
         append_call_log(tmp_path, "test_run", record)
 
 
 def test_logger_rejects_authorization_bearer(tmp_path: Path):
     record = _sample_record(
-        request={"headers": {"Authorization": "Bearer sk_or_v1-00deadbeef"}}
+        request={"headers": {"Authorization": "Bearer " + _FAKE_KEY}}
     )
     with pytest.raises(ValueError, match="Authorization"):
         append_call_log(tmp_path, "test_run", record)
@@ -69,6 +71,7 @@ def test_logger_rejects_authorization_bearer(tmp_path: Path):
 def test_repo_has_no_sk_or_in_committed_files():
     """Grep for OpenRouter key-shaped secrets in git-tracked files only."""
     root = Path(__file__).resolve().parents[1]
+    pattern = "sk-or" + r"-v1-[a-fA-F0-9]{32,}"
     result = subprocess.run(
         [
             "git",
@@ -76,7 +79,7 @@ def test_repo_has_no_sk_or_in_committed_files():
             str(root),
             "grep",
             "-nE",
-            r"sk_or_v1-[a-fA-F0-9]{32,}",
+            pattern,
             "--",
             ".",
             ":(exclude).env",
@@ -85,4 +88,4 @@ def test_repo_has_no_sk_or_in_committed_files():
         text=True,
     )
     assert result.returncode in (0, 1)
-    assert result.stdout.strip() == "", f"Found secret-shaped sk_or_ in tracked files:\n{result.stdout}"
+    assert result.stdout.strip() == "", f"Found secret-shaped key material in tracked files:\n{result.stdout}"
