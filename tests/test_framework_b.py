@@ -124,7 +124,10 @@ def _load_upstream_compute_metrics():
 
     from memorytask.config import repo_root
 
-    src = (repo_root() / "vendor/upward-deception/evaluation.py").read_text(encoding="utf-8")
+    upstream = repo_root() / "vendor/upward-deception/evaluation.py"
+    if not upstream.exists():
+        pytest.skip("vendor/upward-deception absent (withheld from public tree)")
+    src = upstream.read_text(encoding="utf-8")
     m = re.search(r"def _safe_rate\(.*?\n(?=def )", src, flags=re.DOTALL)
     m2 = re.search(r"def compute_metrics\(.*?\n(?=\ndef print_metrics)", src, flags=re.DOTALL)
     assert m and m2

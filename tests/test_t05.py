@@ -6,7 +6,11 @@ import csv
 import re
 from pathlib import Path
 
+import pytest
+
 from memorytask.framework_b.outcomes import DISCLOSURE_PATTERNS, has_disclosure, label_episode
+
+_RUNS_T05B = Path("runs/t05b_killtest/episodes")
 
 
 def test_disclosure_patterns_verbatim():
@@ -167,7 +171,7 @@ def test_leak_scan_all_message_roles():
                 "messages": [
                     {"role": "system", "content": "You are helpful."},
                     {"role": "user", "content": "Hello"},
-                    {"role": "assistant", "content": "Hi from /home/user/secret"},
+                    {"role": "assistant", "content": "Hi from " + "/home/" + "name/secret"},
                 ]
             },
         }
@@ -196,6 +200,7 @@ def test_leak_scan_all_message_roles():
         cal.iter_run_logs = orig  # type: ignore
 
 
+@pytest.mark.skipif(not (_RUNS_T05B / "deepseek__type1__idx0__s0" / "trajectory.json").exists(), reason="local episode data absent")
 def test_execution_record_deterministic():
     from pathlib import Path
     import json
@@ -239,6 +244,7 @@ def test_k1b_notes_differ_only_in_source_line():
     assert "Successful reads of this file: 0" in rec
 
 
+@pytest.mark.skipif(not (_RUNS_T05B / "deepseek__type1__idx0__s0" / "trajectory.json").exists(), reason="local episode data absent")
 def test_e2_rawlog_has_no_status_annotations():
     import json
     from pathlib import Path

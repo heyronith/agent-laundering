@@ -1,9 +1,8 @@
 """Agent-visible input leak scanning (T05b / D012).
 
-Terms match the T05b brief. Matching is intent-aware for path cues:
-- Always-forbidden substrings catch repo/run/user identifiers.
-- Research/Desktop only flag as filesystem path segments (not ResearchGate etc.).
-- episode/experiment/study may appear in upstream task text (whitelist).
+Path and study-context cues that must not appear in model-visible prompts.
+Personal usernames and private repo directory names are detected via path
+patterns (`/home/user`) rather than hard-coded identity strings.
 """
 
 from __future__ import annotations
@@ -11,15 +10,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# Verbatim from T05b brief (reporting / acceptance list).
 LEAK_TERMS: tuple[str, ...] = (
-    "memorytask",
     "alignment",
     "launder",
     "killtest",
     "t05",
     "/home/",
-    "user",
     "Research",
     "Desktop",
     "runs/",
@@ -30,28 +26,26 @@ LEAK_TERMS: tuple[str, ...] = (
 
 # Substrings that always indicate a demand cue / privacy leak.
 _ALWAYS_FORBIDDEN: tuple[str, ...] = (
-    "memorytask",
     "launder",
     "killtest",
     "t05",
     "/home/",
-    "user",
     "runs/",
 )
 
 # Path-segment cues (avoid false positives like ResearchGate, /img/research/, "our research").
 _PATH_SEGMENT_RES: dict[str, re.Pattern[str]] = {
     "Research": re.compile(
-        r"work|/home/[^\s\"'<>]*/Research(?:/|$)|AI\s+Alignment\s+Projects",
+        r"/home/[^\s\"'<>]*/Research(?:/|$)|AI\s+Alignment\s+Projects",
         re.IGNORECASE,
     ),
     "Desktop": re.compile(
-        r"/home/[^\s\"'<>]*/Desktop(?:/|$)|(?:^|[\s\"'])work",
+        r"/home/[^\s\"'<>]*/Desktop(?:/|$)",
         re.IGNORECASE,
     ),
     # "alignment" as study/folder cue, not English "alignment with policy"
     "alignment": re.compile(
-        r"AI\s+Alignment|Alignment\s+Projects|memorytask",
+        r"AI\s+Alignment|Alignment\s+Projects",
         re.IGNORECASE,
     ),
 }
@@ -107,10 +101,8 @@ def find_term_hits(text: str, terms: tuple[str, ...] = LEAK_TERMS) -> list[str]:
 
 def _mask_tool_observations(text: str) -> str:
     """Hide tool Observation blocks so web/search prose does not trip content-word terms."""
-    # Entire tool-result turns from smolagents start with "Observation:".
     if re.match(r"^\s*Observation\s*:", text, flags=re.IGNORECASE):
         return "Observation: [masked]"
-    # Inline observation chunks within a longer message.
     return re.sub(
         r"Observation:\s*.*",
         "Observation: [masked]",
@@ -124,11 +116,9 @@ def classify_hits(
 ) -> tuple[list[str], list[str]]:
     forbidden: list[str] = []
     whitelisted: list[str] = []
-    # Content words: scan text with tool observations masked (external web prose).
     content_scan = _mask_tool_observations(text)
     for term in terms:
         if term in _PATH_SEGMENT_RES:
-            # Path cues: scan full text (paths can appear inside observations).
             present = bool(_PATH_SEGMENT_RES[term].search(text))
             if present:
                 forbidden.append(term)
@@ -139,7 +129,6 @@ def classify_hits(
             continue
         if term in _WHITELISTABLE:
             if not re.search(re.escape(term), content_scan, flags=re.IGNORECASE):
-                # only inside masked observation → ignore
                 continue
             if re.search(re.escape(term), whitelist_text, flags=re.IGNORECASE):
                 whitelisted.append(term)
@@ -152,10 +141,8 @@ def classify_hits(
 
 
 _REDACT_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # Match /Users, /home/, /home/user (incl. already-partial redactions).
     re.compile(r"/Users(?:/[^\s\"'<>]*)?", re.IGNORECASE),
     re.compile(r"/home(?:/[^\s\"'<>]*)?", re.IGNORECASE),
-    re.compile(r"[^\s\"'<>]*memorytask[^\s\"'<>]*", re.IGNORECASE),
     re.compile(r"[^\s\"'<>]*t05b?_?killtest[^\s\"'<>]*", re.IGNORECASE),
     re.compile(r"AI\s+Alignment\s+Projects[^\s\"'<>]*", re.IGNORECASE),
 )
@@ -166,9 +153,6 @@ def sanitize_agent_visible_text(text: str) -> str:
     out = text
     for cre in _REDACT_PATTERNS:
         out = cre.sub("[REDACTED_PATH]", out)
-    # Username leftover as a directory listing line
-    out = re.sub(r"(?m)^user\s*$", "[REDACTED]", out)
-    out = re.sub(r"(?m)(^|\s)user(\s|$)", r"\1[REDACTED]\2", out)
     return out
 
 

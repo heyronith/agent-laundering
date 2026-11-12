@@ -1,13 +1,44 @@
+# Secrets and local tooling
 .env
+.env.*
 .venv/
+.cursor/
+.vscode/
+.DS_Store
 __pycache__/
-cache/
 *.pyc
 *.pyo
+*.bundle
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
 dist/
 build/
-.DS_Store
+cache/
+
+# Local-only process files and backups of withheld data
+local_only/
+
+# Human coding sheets / keys
+coding/
+
+# Internal process docs
+docs/briefs/
+docs/decisions.md
+docs/standing_rules.md
+docs/framework_a.md
+
+# Superseded / item-level reports (aggregates live in RESULTS.md)
+reports/
+
+# Raw API logs and episode data (task text, answers, paths)
+logs/
+runs/
+
+# Third-party benchmarks (no redistributable license / out of scope)
+vendor/
+data/planted/
+
+# Numbers / spreadsheet exports
+*.numbers
