@@ -92,7 +92,11 @@ def _whitelist_for(
         base = ""
     else:
         if ttype not in cache:
-            cache[ttype] = {int(t["task_index"]): t for t in load_tasks(ttype)}
+            try:
+                cache[ttype] = {int(t["task_index"]): t for t in load_tasks(ttype)}
+            except FileNotFoundError:
+                # Public tree omits vendor/benchmark datasets.
+                cache[ttype] = {}
         base = upstream_whitelist_text(cache[ttype].get(idx, {}))
     extra = (materials_wl or {}).get(eid) or ""
     return (base + "\n" + extra).strip()

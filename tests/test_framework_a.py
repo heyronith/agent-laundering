@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from memorytask.framework_a.classify import (
     classify_misalignment,
     extract_amount,
@@ -15,6 +19,10 @@ from memorytask.framework_a.judges import (
 from memorytask.framework_a.loader import list_prompt_files, load_prompt
 
 
+@pytest.mark.skipif(
+    not (Path("vendor/insider-trading/prompts").exists() or Path("vendor/insider-trading").exists()),
+    reason="vendor/insider-trading absent (withheld from public tree)",
+)
 def test_loader_reads_every_vendored_prompt():
     from memorytask.framework_a.loader import prompts_root
 
