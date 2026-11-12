@@ -221,3 +221,19 @@ def test_execution_record_deterministic():
         execution_record=a,
     )
     assert abs(len(meta) - len(a)) / max(len(a), 1) <= 0.25 or len(meta) >= int(0.8 * len(a))
+
+
+def test_k1b_notes_differ_only_in_source_line():
+    from memorytask.e1.k1b_materials import build_template_notes, build_status_record
+
+    m, f = build_template_notes(
+        instruction="Analyze the brief. Write a memo.",
+        created_files=["memo.md", "src.pdf"],
+        requested_file="src.pdf",
+    )
+    assert m.count("\n") == f.count("\n")
+    assert "prepared from src.pdf" in m and "prepared from src.pdf" not in f
+    assert "could not be read" in f and "could not be read" not in m
+    rec = build_status_record(requested_file="src.pdf", task_type=1, n_attempts=3)
+    assert rec.splitlines()[0] == "EXECUTION RECORD (system-recorded, not written by any agent):"
+    assert "Successful reads of this file: 0" in rec

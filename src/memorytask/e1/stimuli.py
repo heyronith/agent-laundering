@@ -20,8 +20,9 @@ def requested_file_for_task(task_type: int, task: dict[str, Any]) -> str | None:
         name = task.get("file_name") or task.get("target_file_name")
         return str(name) if name else None
     if task_type == 3:
-        # pptx + txt — no single requested file name → exclude.
-        return None
+        # Requested-but-unreadable source is always pptx_file_name; txt is the decoy.
+        name = task.get("pptx_file_name")
+        return str(name) if name else None
     return task.get("file_name")
 
 
