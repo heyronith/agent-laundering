@@ -54,16 +54,48 @@ def _load_discarded(run_id: str) -> set[str]:
     return ids
 
 
-def _whitelist_for(eid: str, cache: dict[int, dict[int, dict[str, Any]]]) -> str:
+def _materials_whitelist(run_id: str) -> dict[str, str]:
+    """Optional per-episode whitelist from intentional prompt materials (E2 RAWLOG etc.)."""
+    path = repo_root() / "runs" / run_id / "materials.jsonl"
+    out: dict[str, str] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        eid = str(row.get("episode_id") or "")
+        if not eid:
+            continue
+        parts = [
+            str(row.get("instruction") or ""),
+            str(row.get("evidence_rawlog") or ""),
+            str(row.get("evidence_status") or row.get("execution_record") or ""),
+            str(row.get("evidence_none") or row.get("neutral_metadata") or ""),
+            str(row.get("note_misleading") or ""),
+            str(row.get("note_faithful") or ""),
+        ]
+        out[eid] = "\n".join(parts)
+    return out
+
+
+def _whitelist_for(
+    eid: str,
+    cache: dict[int, dict[int, dict[str, Any]]],
+    materials_wl: dict[str, str] | None = None,
+) -> str:
     bits = eid.split("__")
     try:
         ttype = int(bits[1].replace("type", ""))
         idx = int(bits[2].replace("idx", ""))
     except (IndexError, ValueError):
-        return ""
-    if ttype not in cache:
-        cache[ttype] = {int(t["task_index"]): t for t in load_tasks(ttype)}
-    return upstream_whitelist_text(cache[ttype].get(idx, {}))
+        base = ""
+    else:
+        if ttype not in cache:
+            cache[ttype] = {int(t["task_index"]): t for t in load_tasks(ttype)}
+        base = upstream_whitelist_text(cache[ttype].get(idx, {}))
+    extra = (materials_wl or {}).get(eid) or ""
+    return (base + "\n" + extra).strip()
 
 
 def _broad_hits(text: str) -> list[str]:
@@ -98,6 +130,7 @@ def collect_raw_inputs(
     """
     discarded = _load_discarded(run_id)
     task_cache: dict[int, dict[int, dict[str, Any]]] = {}
+    materials_wl = _materials_whitelist(run_id)
     items: list[dict[str, Any]] = []
     for r in iter_run_logs(repo_root() / "logs"):
         if r.get("run_id") != run_id:
@@ -108,7 +141,7 @@ def collect_raw_inputs(
         if cid in discarded:
             continue
         eid = _episode_id_from_task_id(r.get("task_id"))
-        wl = _whitelist_for(eid, task_cache)
+        wl = _whitelist_for(eid, task_cache, materials_wl)
         msgs = (r.get("request") or {}).get("messages") or []
         for i, msg in enumerate(msgs):
             role = msg.get("role")

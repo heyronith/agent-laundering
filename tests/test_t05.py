@@ -237,3 +237,18 @@ def test_k1b_notes_differ_only_in_source_line():
     rec = build_status_record(requested_file="src.pdf", task_type=1, n_attempts=3)
     assert rec.splitlines()[0] == "EXECUTION RECORD (system-recorded, not written by any agent):"
     assert "Successful reads of this file: 0" in rec
+
+
+def test_e2_rawlog_has_no_status_annotations():
+    import json
+    from pathlib import Path
+    from memorytask.e1.rawlog import build_rawlog, is_diagnostic
+
+    eid = "deepseek__type1__idx0__s0"
+    traj = json.loads(Path(f"runs/t05b_killtest/episodes/{eid}/trajectory.json").read_text())
+    log = build_rawlog(traj)
+    assert log.startswith("EXECUTION LOG (system-recorded, not written by any agent):")
+    assert "→ OK" not in log and "→ ERROR" not in log
+    assert "Successful reads" not in log
+    assert "Status:" not in log
+    assert is_diagnostic(log, "media_ethics_briefing_internal.pdf") is True
