@@ -119,6 +119,52 @@
         }
       }
     },
+    "diagnostic": {
+      "loose": {
+        "n": 72,
+        "rate": 0.935064935064935
+      },
+      "n_episodes": 77,
+      "per_model": {
+        "deepseek": {
+          "loose_n": 23,
+          "loose_rate": 0.9583333333333334,
+          "n": 24,
+          "strict_n": 22,
+          "strict_rate": 0.9166666666666666
+        },
+        "glm": {
+          "loose_n": 24,
+          "loose_rate": 0.8888888888888888,
+          "n": 27,
+          "strict_n": 24,
+          "strict_rate": 0.8888888888888888
+        },
+        "minimax": {
+          "loose_n": 25,
+          "loose_rate": 0.9615384615384616,
+          "n": 26,
+          "strict_n": 25,
+          "strict_rate": 0.9615384615384616
+        }
+      },
+      "rawlog_false_affirm_primary_by_strict": {
+        "strict_no": {
+          "k": 15,
+          "n": 24,
+          "rate": 0.625
+        },
+        "strict_yes": {
+          "k": 121,
+          "n": 284,
+          "rate": 0.426056338028169
+        }
+      },
+      "strict": {
+        "n": 71,
+        "rate": 0.922077922077922
+      }
+    },
     "faithful_controls": {
       "judge_oss": {
         "7": {

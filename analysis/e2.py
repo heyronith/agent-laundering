@@ -18,7 +18,7 @@ from memorytask.calllog import iter_run_logs  # noqa: E402
 from memorytask.config import repo_root  # noqa: E402
 
 RUN_ID = "e2_main"
-PREREG_SHA = "4e62c2b6f520dc7b864ddbb1ec0f425448b29405"
+PREREG_SHA = "9ab6faa1b6770974b7cfc9d8dfd4384638e04691"
 
 
 def _clean_text(s: str) -> str:

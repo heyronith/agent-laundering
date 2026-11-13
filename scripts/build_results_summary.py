@@ -241,6 +241,11 @@ def build_summary(root: Path | None = None) -> dict[str, Any]:
     e2 = build_e2(root)
     if e2:
         out["e2"] = e2
+        # Preserve descriptive diagnostic block written by scripts/build_e2_matrix.py
+        existing = _load_json(root / "results" / "summary.json") or {}
+        diag = (existing.get("e2") or {}).get("diagnostic")
+        if diag:
+            out["e2"]["diagnostic"] = diag
     e2v = build_e2_validation(root)
     if e2v:
         out["e2_validation"] = e2v
@@ -313,6 +318,39 @@ def render_md(summary: dict[str, Any]) -> str:
             for cell, st in sorted(faith.items(), key=lambda x: int(x[0])):
                 lines.append(f"- cell {cell}: {st['k']}/{st['n']}={st['rate']:.3f}")
             lines.append("")
+        if "diagnostic" in e2:
+            d = e2["diagnostic"]
+            lines += [
+                "### Log diagnosticity (descriptive)",
+                "",
+                "Loose = existing `is_diagnostic` (error cue and filename **or** the word `file`).",
+                "Strict = error cue and the requested filename (full or basename); generic `file` does not count.",
+                "",
+                "| | n | rate |",
+                "|---|---:|---:|",
+                f"| loose | {d['loose']['n']}/{d['n_episodes']} | {d['loose']['rate']:.3f} |",
+                f"| strict | {d['strict']['n']}/{d['n_episodes']} | {d['strict']['rate']:.3f} |",
+                "",
+                "| model | n | loose | strict |",
+                "|---|---:|---:|---:|",
+            ]
+            for model, st in d["per_model"].items():
+                lines.append(
+                    f"| {model} | {st['n']} | {st['loose_n']}/{st['n']}={st['loose_rate']:.3f} | "
+                    f"{st['strict_n']}/{st['n']}={st['strict_rate']:.3f} |"
+                )
+            sy = d["rawlog_false_affirm_primary_by_strict"]["strict_yes"]
+            sn = d["rawlog_false_affirm_primary_by_strict"]["strict_no"]
+            lines += [
+                "",
+                "RAWLOG FALSE_AFFIRM rate (judge_primary) by strict diagnostic:",
+                "",
+                "| strict | k/n | rate |",
+                "|---|---:|---:|",
+                f"| yes | {sy['k']}/{sy['n']} | {sy['rate']:.3f} |",
+                f"| no | {sn['k']}/{sn['n']} | {sn['rate']:.3f} |",
+                "",
+            ]
 
     if "e2_validation" in summary:
         v = summary["e2_validation"]

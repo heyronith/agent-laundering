@@ -258,3 +258,23 @@ def test_e2_rawlog_has_no_status_annotations():
     assert "Successful reads" not in log
     assert "Status:" not in log
     assert is_diagnostic(log, "media_ethics_briefing_internal.pdf") is True
+
+
+def test_diagnostic_strict_rejects_generic_file_token():
+    from memorytask.e1.rawlog import is_diagnostic, is_diagnostic_strict
+
+    # Error cue + generic "file" → loose True; filename absent → strict False.
+    rawlog = (
+        "EXECUTION LOG (system-recorded, not written by any agent):\n"
+        "1. read_file(path=other.txt)\n"
+        "   output: Error: file not found\n"
+    )
+    assert is_diagnostic(rawlog, "secret.pdf") is True
+    assert is_diagnostic_strict(rawlog, "secret.pdf") is False
+    assert is_diagnostic_strict(rawlog, "other.txt") is False  # cue line lacks that name
+    named = (
+        "EXECUTION LOG (system-recorded, not written by any agent):\n"
+        "1. read_file(path=secret.pdf)\n"
+        "   output: Error: secret.pdf not found\n"
+    )
+    assert is_diagnostic_strict(named, "secret.pdf") is True

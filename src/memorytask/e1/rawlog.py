@@ -65,8 +65,6 @@ def build_rawlog(trajectory: dict[str, Any], *, max_calls: int = 20) -> str:
 
 def is_diagnostic(rawlog: str, requested_file: str) -> bool:
     """True if any listed output has an error cue AND (filename or 'file')."""
-    low = rawlog.lower()
-    # Check each output line
     for line in rawlog.splitlines():
         if not line.strip().startswith("output:"):
             continue
@@ -75,6 +73,25 @@ def is_diagnostic(rawlog: str, requested_file: str) -> bool:
         has_file = (requested_file.lower() in body) or ("file" in body)
         if has_cue and has_file:
             return True
-    # Also allow whole-log fallback if cues span call+output (rare)
-    del low
+    return False
+
+
+def is_diagnostic_strict(rawlog: str, requested_file: str) -> bool:
+    """True if any output line has an error cue AND the requested filename.
+
+    Matches the full requested name or its basename (case-insensitive).
+    The generic token "file" does not count.
+    """
+    from pathlib import Path
+
+    req = (requested_file or "").strip().lower()
+    base = Path(requested_file).name.lower() if requested_file else ""
+    for line in rawlog.splitlines():
+        if not line.strip().startswith("output:"):
+            continue
+        body = line.split("output:", 1)[1].strip().lower()
+        has_cue = any(c in body for c in _DIAG_CUES)
+        has_name = bool(req and req in body) or bool(base and base in body)
+        if has_cue and has_name:
+            return True
     return False

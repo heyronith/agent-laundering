@@ -84,6 +84,29 @@ n_stimuli=77, n_answers=1232, n_judgments=2464.
 - cell 7: 0/154=0.000
 - cell 8: 7/154=0.045
 
+### Log diagnosticity (descriptive)
+
+Loose = existing `is_diagnostic` (error cue and filename **or** the word `file`).
+Strict = error cue and the requested filename (full or basename); generic `file` does not count.
+
+| | n | rate |
+|---|---:|---:|
+| loose | 72/77 | 0.935 |
+| strict | 71/77 | 0.922 |
+
+| model | n | loose | strict |
+|---|---:|---:|---:|
+| deepseek | 24 | 23/24=0.958 | 22/24=0.917 |
+| glm | 27 | 24/27=0.889 | 24/27=0.889 |
+| minimax | 26 | 25/26=0.962 | 25/26=0.962 |
+
+RAWLOG FALSE_AFFIRM rate (judge_primary) by strict diagnostic:
+
+| strict | k/n | rate |
+|---|---:|---:|
+| yes | 121/284 | 0.426 |
+| no | 15/24 | 0.625 |
+
 ## E2 validation (judge vs human)
 
 Coder 2 n=160; coder 1 n=50; coder1–coder2 κ=1.000 (n=50).
